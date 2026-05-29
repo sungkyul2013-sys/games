@@ -599,13 +599,13 @@
   const SLIDE_TIME = 0.62;
   const BASE_SPEED = 13;
   const MAX_SPEED = 36;
-  const SPEED_RAMP = 0.42;
+  const SPEED_RAMP = 0.33;      // gentler acceleration (was 0.42)
   const SPAWN_AHEAD = -130;
   const DESPAWN_Z = 14;
   const TILE_LEN = 30;
-  const SEG_GAP = 9;
-  const LEVEL_DIST = 450;       // distance per level
-  const CHECKPOINT_DIST = 900;  // distance per checkpoint
+  const SEG_GAP = 10;           // a touch more spacing between rows
+  const LEVEL_DIST = 300;       // distance per level (faster levels & biome shifts)
+  const CHECKPOINT_DIST = 750;  // distance per checkpoint
 
   // Biomes cycle as you level up — sky / fog / sun colours shift smoothly
   const BIOMES = [
@@ -1020,6 +1020,14 @@
       s.userData.t = 0;
     }
   }
+  function flame(){
+    for(let i=0;i<2;i++){
+      const s = getSpark(Math.random()<0.5 ? 0xff5533 : 0xffc23a);
+      s.position.set(player.position.x + (Math.random()-0.5)*0.4, player.position.y - 0.3, PLAYER_Z + 0.3);
+      s.userData.v = new THREE.Vector3((Math.random()-0.5)*2, -5 - Math.random()*4, (Math.random()-0.5)*2);
+      s.userData.life = 0.35; s.userData.t = 0;
+    }
+  }
   function updateSparks(dt){
     for(const s of sparkPool){
       if(!s.visible) continue;
@@ -1124,8 +1132,8 @@
     return c;
   }
 
-  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield'];
-  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc };
+  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield', 'rocket', 'rocket'];
+  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc, rocket: 0xff5533 };
   function getPowerup(type) {
     let p = powerups.find(m => !m.visible);
     if (!p) {
@@ -1170,8 +1178,10 @@
     shake: 0,
     level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
     lean: 0, biome: 0, reviveLeft: 0,
+    rocket: 0, flyY: 0,
     ab: abilities('runner'),
   };
+  const ROCKET_DUR = 5.0;   // seconds of rocket flight
   // biome colour interpolation targets (current shown values are in skyMat uniforms)
   const biomeTarget = {
     top: new THREE.Color(BIOMES[0].top), mid: new THREE.Color(BIOMES[0].mid),
@@ -1203,7 +1213,7 @@
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
       shields: u.shield, combo: 0, comboT: 0, shake: 0,
       level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
-      lean: 0, biome: 0,
+      lean: 0, biome: 0, rocket: 0, flyY: 0,
     });
     G.ab = abilities(save.selected);
     G.reviveLeft = G.ab.revive;
@@ -1236,21 +1246,21 @@
   // Guarantees: trains never block all 3 lanes; every row leaves at least one
   // survivable lane reachable with a single action. Difficulty scales with level.
   function spawnRow(z) {
-    const diff = Math.min(1, (G.level-1)/9);   // 0 → 1 across ~10 levels
+    const diff = Math.min(1, (G.level-1)/12);  // ramps up more slowly now
     const r = Math.random();
 
-    // breathing-room coin rows (rarer at high level)
-    if (r < 0.14 - diff*0.07) { spawnCoinRow(z, rnd3()); maybePowerup(z, [0,1,2]); return; }
+    // breathing-room coin rows (more frequent → easier)
+    if (r < 0.20 - diff*0.06) { spawnCoinRow(z, rnd3()); maybePowerup(z, [0,1,2]); return; }
 
     const occ = {};   // lane -> 'train' | 'low' | 'high'
     const lanes = [0,1,2];
 
-    if (Math.random() < 0.16 + diff*0.18) {
+    if (Math.random() < 0.11 + diff*0.14) {
       // FULL-WIDTH GATE: a barrier on every lane, but each is single-action → always passable
       lanes.forEach(l => { occ[l] = Math.random() < 0.5 ? 'low' : 'high'; });
     } else {
-      // 1–2 hazards on random lanes; high level leans toward 2
-      const hazardCount = 1 + (Math.random() < (0.35 + diff*0.45) ? 1 : 0);
+      // 1–2 hazards on random lanes; double hazards mostly at higher levels
+      const hazardCount = 1 + (Math.random() < (0.18 + diff*0.4) ? 1 : 0);
       const order = shuffle(lanes.slice());
       for (let i=0;i<hazardCount;i++){
         const t = Math.random();
@@ -1282,7 +1292,10 @@
     maybePowerup(z, lanes.filter(l => !occ[l]));
   }
   function maybePowerup(z, freeLanes){
-    if (!freeLanes.length || Math.random() >= 0.17) return;
+    if (!freeLanes.length) return;
+    // far more generous, with a big early-game boost so items appear right away
+    const chance = 0.30 + (G.distance < 600 ? 0.22 : 0);
+    if (Math.random() >= chance) return;
     const type = PW_TYPES[(Math.random()*PW_TYPES.length)|0];
     const p = getPowerup(type);
     p.position.set(LANES[freeLanes[(Math.random()*freeLanes.length)|0]], 1.2, z - 5);
@@ -1392,7 +1405,7 @@
   // ===================================================================
   function playerBox() {
     const px = G.laneX;
-    const py = G.y;
+    const py = G.y + G.flyY;
     const halfY = G.sliding ? 0.55 : 1.15;
     const cy = G.sliding ? py + 0.45 : py + 1.15;
     return { x:px, y:cy, z:PLAYER_Z, hx:0.4, hy:halfY, hz:0.4 };
@@ -1418,6 +1431,7 @@
     burst(player.position.x, 1.4, PLAYER_Z, pwColors[type], 14);
     if (type === 'hover') { G.hover = true; playerParts.board.visible = true; }
     else if (type === 'shield') { G.shields++; playerParts.shieldMesh.visible = true; }
+    else if (type === 'rocket') { G.rocket = ROCKET_DUR; G.invuln = Math.max(G.invuln, 0.2); showBanner('🚀 로켓!', '하늘로 발사'); }
     else { G.powerups[type] = pwDur(type); if (type === 'magnet') playerParts.aura.visible = true; }
     updatePowerupBar();
   }
@@ -1425,8 +1439,9 @@
   function updatePowerupBar() {
     const bar = document.getElementById('powerup-bar');
     const chips = [];
+    if (G.rocket > 0)          chips.push(['🚀', Math.ceil(G.rocket)]);
     if (G.powerups.magnet > 0) chips.push(['🧲', Math.ceil(G.powerups.magnet)]);
-    if (G.powerups.boots > 0)  chips.push(['🚀', Math.ceil(G.powerups.boots)]);
+    if (G.powerups.boots > 0)  chips.push(['🥾', Math.ceil(G.powerups.boots)]);
     if (G.powerups.x2 > 0)     chips.push(['✨x2', Math.ceil(G.powerups.x2)]);
     if (G.hover)               chips.push(['🛹', '∞']);
     if (G.shields > 0)         chips.push(['🛡️', G.shields]);
@@ -1453,7 +1468,7 @@
   function onLevelUp(){
     G.level++;
     document.getElementById('hud-level').textContent = G.level;
-    G.speed = Math.min(MAX_SPEED + G.level*1.6, G.speed + 2.5);   // snap a little faster
+    G.speed = Math.min(MAX_SPEED + G.level*0.9, G.speed + 1.8);   // snap a little faster
     const newBiome = (G.level-1) % BIOMES.length;
     if (newBiome !== G.biome){ G.biome = newBiome; const b = setBiome(newBiome); showBanner('LEVEL '+G.level, b.name+' 진입'); }
     else showBanner('LEVEL '+G.level, '속도 상승');
@@ -1815,7 +1830,7 @@
     }
     if (state !== State.PLAY) return;
 
-    const effMax = MAX_SPEED + G.level * 1.6;          // faster every level
+    const effMax = MAX_SPEED + G.level * 0.9;          // gentler ramp per level
     G.speed = Math.min(effMax, G.speed + SPEED_RAMP * dt);
     const move = G.speed * dt;
     G.distance += move;
@@ -1839,14 +1854,19 @@
     }
     if (G.sliding) { G.slideT -= dt; if (G.slideT <= 0) G.sliding = false; }
 
+    // rocket flight: soar above everything, raining flames
+    const rocketActive = G.rocket > 0;
+    if (rocketActive) flame();
+    G.flyY += ((rocketActive ? 5.0 : 0) - G.flyY) * Math.min(1, dt * 4);
+
     player.position.x = G.laneX;
-    player.position.y = G.y + (G.hover ? 0.4 : 0);
-    if (G.sliding) { player.rotation.x = -1.15; player.position.y = G.y + 0.1; }
-    else { player.rotation.x += (0 - player.rotation.x) * Math.min(1, dt*16); }
+    player.position.y = G.y + (G.hover ? 0.4 : 0) + G.flyY;
+    if (G.sliding && !rocketActive) { player.rotation.x = -1.15; player.position.y = G.y + 0.1; }
+    else { player.rotation.x += ((rocketActive ? -0.3 : 0) - player.rotation.x) * Math.min(1, dt*16); }
     player.rotation.z = THREE.MathUtils.clamp((targetX - G.laneX) * -0.16, -0.42, 0.42);
 
-    // smoothly drift biome colours toward the current target
-    const bl = Math.min(1, dt * 1.4);
+    // smoothly drift biome colours toward the current target (quicker shift)
+    const bl = Math.min(1, dt * 2.6);
     skyMat.uniforms.top.value.lerp(biomeTarget.top, bl);
     skyMat.uniforms.mid.value.lerp(biomeTarget.mid, bl);
     skyMat.uniforms.bottom.value.lerp(biomeTarget.bottom, bl);
@@ -1884,6 +1904,7 @@
         pwChanged = true;
       }
     }
+    if (G.rocket > 0) { G.rocket -= dt; if (G.rocket <= 0) G.rocket = 0; pwChanged = true; }
     if (pwChanged) updatePowerupBar();
     if (G.invuln > 0) G.invuln -= dt;
 
@@ -1895,15 +1916,16 @@
       if (!o.visible) continue;
       o.position.z += move;
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
-      if (G.invuln <= 0 && intersect(pBox, o)) {
+      if (G.invuln <= 0 && G.rocket <= 0 && intersect(pBox, o)) {
         if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0 + G.ab.invulnBonus; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
         else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2 + G.ab.invulnBonus; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
         else if (G.reviveLeft > 0) { reviveRun(); return; }
         else { gameOver(); return; }
       }
     }
-    const magnet = G.powerups.magnet > 0;
+    const magnet = G.powerups.magnet > 0 || G.rocket > 0;   // rocket vacuums coins too
     const coinBonus = save.upgrades.multiplier;
+    const pullY = G.y + G.flyY + 1.0;
     for (const c of coins) {
       if (!c.visible) continue;
       c.position.z += move;
@@ -1912,7 +1934,7 @@
         const dz = c.position.z - PLAYER_Z;
         if (dz > -16 && dz < 6) {
           c.position.x += (G.laneX - c.position.x) * Math.min(1, dt*8);
-          c.position.y += ((G.y+1.0) - c.position.y) * Math.min(1, dt*8);
+          c.position.y += (pullY - c.position.y) * Math.min(1, dt*8);
         }
       }
       if (c.position.z > DESPAWN_Z) { c.visible = false; continue; }
