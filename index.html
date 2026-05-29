@@ -357,6 +357,84 @@
   #reward-pop .big { font-size: 54px; }
   #reward-pop .amt { font-size: 30px; font-weight: 900; color: var(--gold); margin-top:6px; }
   #reward-pop .lbl { font-size: 13px; opacity:.8; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+  /* ============ HOME — premium polish ============ */
+  #home {
+    background:
+      radial-gradient(circle at 50% 14%, rgba(120,60,160,.34), transparent 55%),
+      radial-gradient(circle at 50% 110%, rgba(255,150,90,.22), transparent 60%),
+      linear-gradient(180deg, rgba(14,8,30,.30), rgba(8,5,20,.62));
+  }
+  #home-fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+  #home > *:not(#home-fx) { position:relative; z-index:1; }
+  .orb { position:absolute; border-radius:50%; filter:blur(46px); opacity:.55; mix-blend-mode:screen; animation:drift 16s ease-in-out infinite; }
+  .orb.o1 { width:320px;height:320px; background:radial-gradient(circle,#ff7eb3,transparent 70%); top:-70px; left:-50px; }
+  .orb.o2 { width:280px;height:280px; background:radial-gradient(circle,#8a7bff,transparent 70%); bottom:30px; right:-60px; animation-delay:-6s; }
+  .orb.o3 { width:240px;height:240px; background:radial-gradient(circle,#ffd86b,transparent 70%); top:36%; left:52%; animation-delay:-11s; }
+  @keyframes drift { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(34px,-26px) scale(1.12);} 66%{transform:translate(-22px,22px) scale(.94);} }
+  .shoot { position:absolute; width:3px; height:3px; background:#fff; border-radius:3px; box-shadow:0 0 8px #fff; opacity:0; }
+  .shoot::after { content:''; position:absolute; right:2px; top:1px; width:90px; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.9)); }
+  .shoot.s1 { top:16%; left:72%; animation:shoot 8s linear infinite; }
+  .shoot.s2 { top:28%; left:42%; animation:shoot 11s linear infinite 5s; }
+  @keyframes shoot { 0%{opacity:0; transform:translate(0,0) rotate(20deg);} 5%{opacity:1;} 14%{opacity:0; transform:translate(-200px,72px) rotate(20deg);} 100%{opacity:0;} }
+
+  /* brand: living gradient + glow */
+  #home-hero .brand {
+    background: linear-gradient(100deg, #fff1c9, var(--accent), var(--accent2) 55%, var(--accent3), #fff1c9);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: floaty 4s ease-in-out infinite, sheen 6s linear infinite;
+  }
+  @keyframes sheen { to { background-position: 220% 0; } }
+  #home-hero .tag {
+    display:inline-block; margin-top:10px; padding:4px 16px; border-radius:20px;
+    background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    backdrop-filter: blur(6px);
+  }
+
+  /* wallet chips */
+  .wallet-chip {
+    background: linear-gradient(180deg, rgba(50,30,80,.55), rgba(22,14,44,.55));
+    box-shadow: 0 6px 20px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  #settings-btn { transition: transform .12s ease; }
+  #settings-btn:active { transform: scale(.9); }
+
+  /* character showcase tag with glowing halo */
+  #char-name-tag {
+    position: relative; padding: 14px 30px; border-radius: 20px;
+    background: linear-gradient(180deg, rgba(60,34,96,.5), rgba(22,14,44,.5));
+    box-shadow: 0 14px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  #char-name-tag::before {
+    content:''; position:absolute; inset:-2px; border-radius:22px; z-index:-1;
+    background: conic-gradient(from 0deg, var(--gold), var(--accent2), var(--accent3), var(--gold));
+    opacity:.55; filter: blur(10px); animation: spin 7s linear infinite;
+  }
+  #char-name-tag .nm { font-size: 22px; }
+
+  /* play button: glossy with shine sweep */
+  #home-play {
+    position: relative; overflow: hidden;
+    background: linear-gradient(120deg, #ffe18a, var(--accent) 55%, var(--accent2));
+    box-shadow: 0 16px 44px rgba(255,140,110,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(180,60,60,.3);
+  }
+  #home-play::after {
+    content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent);
+    transform: skewX(-20deg); animation: shine 3.4s ease-in-out infinite;
+  }
+  @keyframes shine { 0%,60%{ left:-60%; } 100%{ left:140%; } }
+
+  /* tab bar polish */
+  #tabbar { gap: 10px; }
+  .tab-btn {
+    background: linear-gradient(180deg, rgba(48,28,76,.5), rgba(20,12,40,.5));
+    box-shadow: 0 8px 22px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.1);
+    transition: transform .12s ease, box-shadow .15s ease, background .2s ease;
+  }
+  .tab-btn:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.16); }
+  .tab-btn .ic { filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
 </style>
 </head>
 <body>
@@ -404,6 +482,10 @@
 
   <!-- ============ HOME SCREEN ============ -->
   <div id="home" class="hidden">
+    <div id="home-fx" aria-hidden="true">
+      <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+      <div class="shoot s1"></div><div class="shoot s2"></div>
+    </div>
     <div id="wallet-bar">
       <div class="wallet-chip coins"><span class="ic">🪙</span><span id="wallet-coins">0</span></div>
       <div class="wallet-chip mile"><span class="ic">💎</span><span id="wallet-mile">0</span></div>
@@ -1251,25 +1333,23 @@
     }
   });
 
-  // Responsive swipe: fire the instant a swipe threshold is crossed (during the
-  // move, not on release) and re-arm so several flicks register back-to-back.
+  // Responsive but controlled swipe: ONE action per touch gesture. Lift and
+  // swipe again for the next move — prevents a single drag firing repeatedly.
   let touchStart = null, didSwipe = false;
-  const SWIPE_MIN = 18;
+  const SWIPE_MIN = 30;
   canvas.addEventListener('touchstart', (e) => {
     touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     didSwipe = false;
   }, { passive: true });
   canvas.addEventListener('touchmove', (e) => {
-    if (!touchStart) return;
+    if (!touchStart || didSwipe) return;
     const dx = e.touches[0].clientX - touchStart.x;
     const dy = e.touches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
     if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
     if (adx > ady) moveLane(dx > 0 ? 1 : -1);
     else if (dy > 0) slide(); else jump();
-    didSwipe = true;
-    // re-anchor so a continued drag can trigger the next action
-    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    didSwipe = true;   // locked until finger lifts
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
     if (touchStart && !didSwipe) {
@@ -1411,6 +1491,15 @@
   }
   function show(id){ el(id).classList.remove('hidden'); }
   function hide(id){ el(id).classList.add('hidden'); }
+  // Show an overlay but ignore input for a moment so an in-flight tap/click
+  // (e.g. the jump tap right as you crash) can't instantly trigger its buttons.
+  function showGuarded(id){
+    const o = el(id);
+    o.classList.remove('hidden');
+    o.style.pointerEvents = 'none';
+    clearTimeout(o._guard);
+    o._guard = setTimeout(()=>{ o.style.pointerEvents = ''; }, 500);
+  }
 
   function toast(msg, icon='✨'){
     const w = el('toast-wrap');
@@ -1443,7 +1532,7 @@
     el('hud').classList.add('show');
   }
   function togglePause() {
-    if (state === State.PLAY) { state = State.PAUSE; show('pause-overlay'); }
+    if (state === State.PLAY) { state = State.PAUSE; showGuarded('pause-overlay'); }
     else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
   }
   function goHome() {
@@ -1476,7 +1565,7 @@
     el('run-mile').textContent = '+'+mileGain;
     el('newbest').style.display = isBest ? 'block' : 'none';
     el('hud').classList.remove('show');
-    show('over-overlay');
+    showGuarded('over-overlay');
     checkAchievements(true);
   }
 
