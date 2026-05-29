@@ -6,14 +6,18 @@
 <title>Sunset Runner · 선셋 러너</title>
 <style>
   :root {
-    --glass: rgba(20, 12, 40, 0.45);
-    --glass-border: rgba(255, 210, 180, 0.35);
+    --glass: rgba(22, 14, 44, 0.55);
+    --glass-soft: rgba(40, 24, 70, 0.40);
+    --glass-border: rgba(255, 210, 180, 0.30);
     --accent: #ffb27a;
     --accent2: #ff7eb3;
+    --accent3: #8a7bff;
     --gold: #ffd86b;
+    --ok: #6bffb0;
+    --danger: #ff6b8a;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a0e2e; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #120a22; }
   body {
     font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
     color: #fff;
@@ -22,11 +26,15 @@
   }
   #game-canvas { position: fixed; inset: 0; display: block; }
 
+  /* ---------- scrollbars ---------- */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 8px; }
+
   /* ---------- HUD ---------- */
   #hud {
     position: fixed; top: 0; left: 0; right: 0;
     display: flex; justify-content: space-between; align-items: flex-start;
-    padding: 18px 22px; pointer-events: none; z-index: 10;
+    padding: 16px 18px; pointer-events: none; z-index: 10;
     opacity: 0; transition: opacity .4s ease;
   }
   #hud.show { opacity: 1; }
@@ -34,30 +42,41 @@
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: 18px;
-    padding: 10px 18px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    padding: 9px 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 6px 24px rgba(0,0,0,.25);
-    text-align: center; min-width: 90px;
+    text-align: center; min-width: 84px;
   }
-  .hud-pill .label { font-size: 11px; letter-spacing: 2px; opacity: .75; text-transform: uppercase; }
-  .hud-pill .value { font-size: 26px; font-weight: bold; line-height: 1.1; }
+  .hud-pill .label { font-size: 10px; letter-spacing: 2px; opacity: .7; text-transform: uppercase; }
+  .hud-pill .value { font-size: 24px; font-weight: bold; line-height: 1.1; }
   .hud-pill .value.coins { color: var(--gold); }
-  #hud-right { display: flex; gap: 12px; align-items: flex-start; }
+  #hud-left { display: flex; gap: 10px; align-items: flex-start; }
+  #hud-right { display: flex; gap: 10px; align-items: flex-start; }
   #pause-btn {
     pointer-events: auto; cursor: pointer;
-    width: 48px; height: 48px; border-radius: 14px;
+    width: 46px; height: 46px; border-radius: 14px;
     background: var(--glass); border: 1px solid var(--glass-border);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+    font-size: 18px;
   }
   #pause-btn:active { transform: scale(.92); }
+  /* combo meter */
+  #combo {
+    position: fixed; left: 50%; top: 70px; transform: translateX(-50%) scale(0);
+    z-index: 11; pointer-events: none; text-align: center;
+    transition: transform .2s cubic-bezier(.3,1.6,.5,1);
+  }
+  #combo.show { transform: translateX(-50%) scale(1); }
+  #combo .x { font-size: 30px; font-weight: 900; color: var(--gold); text-shadow: 0 2px 14px rgba(255,180,80,.6); }
+  #combo .t { font-size: 11px; letter-spacing: 3px; opacity: .8; text-transform: uppercase; }
 
   /* ---------- Powerup banner ---------- */
   #powerup-bar {
-    position: fixed; left: 50%; top: 88px; transform: translateX(-50%);
-    display: flex; gap: 10px; z-index: 10; pointer-events: none;
+    position: fixed; left: 50%; top: 92px; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 10; pointer-events: none; flex-wrap: wrap; justify-content: center;
+    max-width: 90vw;
   }
   .pw-chip {
     background: var(--glass); border: 1px solid var(--glass-border);
@@ -72,58 +91,255 @@
     position: fixed; inset: 0; z-index: 20;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; padding: 24px;
-    background: radial-gradient(circle at 50% 30%, rgba(60,20,80,.35), rgba(15,8,28,.82));
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    background: radial-gradient(circle at 50% 25%, rgba(70,28,100,.42), rgba(12,7,24,.86));
+    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
     transition: opacity .45s ease;
   }
   .overlay.hidden { opacity: 0; pointer-events: none; }
   .title {
-    font-size: clamp(40px, 11vw, 88px); font-weight: 900; letter-spacing: 2px;
+    font-size: clamp(40px, 11vw, 92px); font-weight: 900; letter-spacing: 2px;
     background: linear-gradient(100deg, #fff1c9, var(--accent), var(--accent2));
     -webkit-background-clip: text; background-clip: text; color: transparent;
-    text-shadow: 0 8px 30px rgba(255,120,150,.25); line-height: 1.05;
+    text-shadow: 0 8px 30px rgba(255,120,150,.25); line-height: 1.02;
+    filter: drop-shadow(0 6px 24px rgba(255,126,179,.3));
   }
-  .subtitle { font-size: clamp(14px, 3.5vw, 19px); opacity: .85; margin-top: 6px; letter-spacing: 4px; text-transform: uppercase; }
+  .subtitle { font-size: clamp(13px, 3.5vw, 18px); opacity: .85; margin-top: 8px; letter-spacing: 5px; text-transform: uppercase; }
   .panel {
-    margin-top: 26px; background: var(--glass); border: 1px solid var(--glass-border);
-    border-radius: 22px; padding: 22px 26px; max-width: 380px; width: 100%;
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    margin-top: 24px; background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 22px; padding: 22px 26px; max-width: 400px; width: 100%;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
   }
   .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; font-size: 14px; opacity: .9; margin-top: 4px; }
   .controls-grid .k { font-weight: bold; color: var(--accent); }
   .btn {
-    margin-top: 22px; cursor: pointer; pointer-events: auto;
+    margin-top: 18px; cursor: pointer; pointer-events: auto;
     font-size: 20px; font-weight: bold; letter-spacing: 1px;
     padding: 16px 46px; border: none; border-radius: 18px; color: #2a1030;
     background: linear-gradient(120deg, var(--gold), var(--accent));
     box-shadow: 0 10px 30px rgba(255,150,110,.45);
-    transition: transform .12s ease, box-shadow .12s ease;
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
   }
   .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(255,150,110,.6); }
   .btn:active { transform: translateY(1px) scale(.98); }
   .btn.secondary {
-    background: var(--glass); color: #fff; border: 1px solid var(--glass-border);
+    background: var(--glass-soft); color: #fff; border: 1px solid var(--glass-border);
     box-shadow: none; font-size: 16px; padding: 12px 32px;
   }
+  .btn:disabled { filter: grayscale(.7) brightness(.7); cursor: not-allowed; transform: none; box-shadow: none; }
   .stat-row { display: flex; justify-content: space-around; margin: 6px 0 2px; }
   .stat-row .blk .v { font-size: 32px; font-weight: 900; }
   .stat-row .blk .v.gold { color: var(--gold); }
   .stat-row .blk .l { font-size: 12px; opacity: .7; letter-spacing: 2px; text-transform: uppercase; }
   .newbest { color: var(--gold); font-weight: bold; margin-top: 10px; letter-spacing: 2px; animation: pulse 1s infinite alternate; }
   @keyframes pulse { from { opacity: .5; } to { opacity: 1; } }
-  .hint { font-size: 13px; opacity: .6; margin-top: 18px; letter-spacing: 1px; }
+  .hint { font-size: 13px; opacity: .6; margin-top: 16px; letter-spacing: 1px; }
+
+  /* ---------- HOME SCREEN ---------- */
+  #home {
+    position: fixed; inset: 0; z-index: 25;
+    display: flex; flex-direction: column;
+    background: radial-gradient(circle at 50% 18%, rgba(80,32,120,.30), rgba(10,6,22,.55) 70%);
+    transition: opacity .4s ease;
+  }
+  #home.hidden { opacity: 0; pointer-events: none; }
+  /* top wallet bar */
+  #wallet-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; gap: 10px;
+  }
+  .wallet-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 16px; padding: 9px 16px; font-weight: bold; font-size: 16px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  }
+  .wallet-chip .ic { font-size: 18px; }
+  .wallet-chip.coins span { color: var(--gold); }
+  .wallet-chip.mile span { color: var(--accent3); }
+  #settings-btn { cursor: pointer; }
+
+  /* hero / brand */
+  #home-hero {
+    text-align: center; margin-top: 6px; pointer-events: none;
+  }
+  #home-hero .brand {
+    font-size: clamp(44px, 13vw, 110px); font-weight: 900; letter-spacing: 2px; line-height: .92;
+    background: linear-gradient(100deg, #fff1c9, var(--accent), var(--accent2) 70%, var(--accent3));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 8px 28px rgba(255,126,179,.35));
+    animation: floaty 4s ease-in-out infinite;
+  }
+  @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  #home-hero .tag { font-size: clamp(12px,3.2vw,16px); letter-spacing: 6px; text-transform: uppercase; opacity:.8; margin-top: 4px; }
+
+  /* center area shows current character info */
+  #home-center {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    pointer-events: none; gap: 4px;
+  }
+  #char-name-tag {
+    background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 14px; padding: 7px 18px; font-weight: bold; letter-spacing: 1px;
+    backdrop-filter: blur(10px); pointer-events: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  }
+  #char-name-tag .role { font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; }
+  #char-name-tag .nm { font-size: 19px; }
+
+  /* big play button */
+  #home-play {
+    margin: 0 auto 4px; cursor: pointer; pointer-events: auto;
+    font-size: 24px; font-weight: 900; letter-spacing: 2px; color: #2a1030;
+    padding: 18px 64px; border: none; border-radius: 22px;
+    background: linear-gradient(120deg, var(--gold), var(--accent) 60%, var(--accent2));
+    box-shadow: 0 14px 40px rgba(255,150,110,.5);
+    transition: transform .12s ease, box-shadow .12s ease;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100%{ box-shadow:0 14px 40px rgba(255,150,110,.45);} 50%{ box-shadow:0 18px 52px rgba(255,150,110,.75);} }
+  #home-play:hover { transform: translateY(-3px) scale(1.02); }
+  #home-play:active { transform: scale(.97); }
+
+  /* tab bar */
+  #tabbar {
+    display: flex; justify-content: center; gap: 8px; padding: 14px 12px 22px;
+  }
+  .tab-btn {
+    flex: 1; max-width: 130px; cursor: pointer; pointer-events: auto;
+    background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 18px; padding: 12px 6px; text-align: center;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: transform .12s ease, background .2s ease;
+    position: relative;
+  }
+  .tab-btn:active { transform: scale(.95); }
+  .tab-btn .ic { font-size: 24px; display:block; }
+  .tab-btn .tl { font-size: 11px; letter-spacing: 1px; opacity: .85; margin-top: 3px; }
+  .tab-btn .badge {
+    position: absolute; top: 6px; right: 10px; background: var(--danger);
+    color: #fff; font-size: 10px; font-weight: bold; border-radius: 10px;
+    min-width: 16px; height: 16px; line-height: 16px; padding: 0 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4); display: none;
+  }
+  .tab-btn .badge.show { display: block; animation: pop .3s ease; }
+
+  /* ---------- Generic modal sheet ---------- */
+  .sheet {
+    position: fixed; inset: 0; z-index: 30;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0; transition: opacity .3s ease;
+    background: radial-gradient(circle at 50% 20%, rgba(60,24,90,.5), rgba(8,5,18,.9));
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .sheet.hidden { opacity: 0; pointer-events: none; }
+  .sheet-head {
+    width: 100%; max-width: 560px; display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 22px 8px;
+  }
+  .sheet-head h2 { font-size: 26px; font-weight: 900; letter-spacing: 1px;
+    background: linear-gradient(100deg,#fff1c9,var(--accent)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .close-x {
+    cursor: pointer; width: 42px; height: 42px; border-radius: 12px;
+    background: var(--glass); border: 1px solid var(--glass-border);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .close-x:active { transform: scale(.92); }
+  .sheet-sub { width:100%; max-width:560px; padding: 0 22px 6px; font-size: 13px; opacity:.7; letter-spacing:1px; }
+  .sheet-body {
+    width: 100%; max-width: 560px; flex: 1; overflow-y: auto;
+    padding: 12px 16px 30px; display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* shop card */
+  .card {
+    background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 18px; padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 8px 26px rgba(0,0,0,.25); position: relative; overflow: hidden;
+  }
+  .card.locked { opacity: .96; }
+  .card .swatch {
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 30px;
+    box-shadow: inset 0 0 18px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.3);
+  }
+  .card .info { flex: 1; min-width: 0; }
+  .card .info .nm { font-size: 17px; font-weight: bold; }
+  .card .info .ds { font-size: 12px; opacity: .7; margin-top: 2px; line-height: 1.35; }
+  .card .info .lv { font-size: 11px; opacity:.6; margin-top:3px; letter-spacing:1px; }
+  .card .act { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .price { display: inline-flex; align-items: center; gap: 5px; font-weight: bold; color: var(--gold); font-size: 15px; }
+  .mini-btn {
+    cursor: pointer; pointer-events: auto; border: none; border-radius: 12px;
+    padding: 9px 16px; font-weight: bold; font-size: 14px; color: #2a1030;
+    background: linear-gradient(120deg, var(--gold), var(--accent));
+    transition: transform .1s ease, filter .1s ease; white-space: nowrap;
+  }
+  .mini-btn:active { transform: scale(.94); }
+  .mini-btn.owned { background: var(--glass-soft); color: var(--ok); border: 1px solid rgba(107,255,176,.4); }
+  .mini-btn.equipped { background: linear-gradient(120deg,var(--accent3),var(--accent2)); color:#fff; }
+  .mini-btn:disabled { filter: grayscale(.6) brightness(.65); cursor: not-allowed; }
+  .mini-btn.max { background: var(--glass-soft); color: var(--gold); border: 1px solid rgba(255,216,107,.4); }
+  /* upgrade level bar */
+  .lvbar { display:flex; gap:3px; margin-top:6px; }
+  .lvbar i { width:14px; height:6px; border-radius:3px; background: rgba(255,255,255,.18); }
+  .lvbar i.on { background: linear-gradient(90deg,var(--gold),var(--accent)); }
+
+  /* daily reward grid */
+  .daily-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .day-cell {
+    background: var(--glass); border: 1px solid var(--glass-border);
+    border-radius: 14px; padding: 12px 6px; text-align: center; position: relative;
+  }
+  .day-cell .d { font-size: 11px; opacity: .6; letter-spacing: 1px; }
+  .day-cell .r { font-size: 22px; margin: 4px 0; }
+  .day-cell .a { font-size: 13px; font-weight: bold; color: var(--gold); }
+  .day-cell.claimed { opacity: .45; }
+  .day-cell.claimed::after { content:'✓'; position:absolute; top:6px; right:8px; color: var(--ok); font-weight: bold; }
+  .day-cell.today { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255,216,107,.4), 0 8px 24px rgba(255,180,80,.25); animation: pulse 1.2s infinite alternate; }
+
+  /* achievement row */
+  .ach { background: var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:12px; }
+  .ach .ic { font-size: 28px; width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:12px; background: rgba(0,0,0,.2); flex-shrink:0; }
+  .ach.done .ic { background: linear-gradient(120deg, rgba(255,216,107,.3), rgba(255,178,122,.3)); }
+  .ach .info { flex:1; }
+  .ach .info .nm { font-weight:bold; font-size:15px; }
+  .ach .info .ds { font-size:12px; opacity:.7; margin-top:2px; }
+  .ach .prog { font-size:11px; opacity:.6; margin-top:4px; }
+  .ach .bar { height:5px; border-radius:3px; background: rgba(255,255,255,.14); margin-top:5px; overflow:hidden; }
+  .ach .bar i { display:block; height:100%; background: linear-gradient(90deg,var(--gold),var(--accent)); border-radius:3px; }
+  .ach .claim { flex-shrink:0; }
+  .ach.claimed .info .nm::after { content:' ✓'; color: var(--ok); }
+
+  /* toast */
+  #toast-wrap { position: fixed; left:50%; bottom: 30px; transform: translateX(-50%); z-index: 60; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
+  .toast {
+    background: var(--glass); border:1px solid var(--glass-border); border-radius: 16px;
+    padding: 12px 22px; font-weight: bold; font-size: 15px; backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: toastIn .35s ease, toastOut .35s ease 2.4s forwards;
+    display:flex; align-items:center; gap:10px;
+  }
+  @keyframes toastIn { from{ transform: translateY(24px); opacity:0;} to{ transform:none; opacity:1;} }
+  @keyframes toastOut { to { transform: translateY(-12px); opacity:0; } }
 
   #loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 40;
-    background: linear-gradient(180deg, #2a1647, #5a2d52 55%, #c8623f); flex-direction: column; gap: 18px; }
+    background: linear-gradient(180deg, #241244, #5a2d52 55%, #c8623f); flex-direction: column; gap: 18px; }
   .spinner { width: 46px; height: 46px; border: 4px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #loader .t { letter-spacing: 6px; text-transform: uppercase; opacity: .85; font-size: 14px; }
-  #error-box { display: none; position: fixed; inset: 0; z-index: 50; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:30px; text-align:center; background:#1a0e2e; }
+  #error-box { display: none; position: fixed; inset: 0; z-index: 50; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:30px; text-align:center; background:#120a22; }
   #error-box h2 { color: var(--accent); }
   #error-box p { opacity:.8; max-width:420px; line-height:1.6; }
 
   .flash { position: fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:15; }
+  /* reward popup burst */
+  #reward-pop { position: fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition: opacity .3s ease; }
+  #reward-pop.show { opacity:1; }
+  #reward-pop .box { background: var(--glass); border:1px solid var(--gold); border-radius:24px; padding:30px 40px; text-align:center; box-shadow:0 0 40px rgba(255,200,90,.4); backdrop-filter: blur(14px); animation: pop .4s ease; }
+  #reward-pop .big { font-size: 54px; }
+  #reward-pop .amt { font-size: 30px; font-weight: 900; color: var(--gold); margin-top:6px; }
+  #reward-pop .lbl { font-size: 13px; opacity:.8; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -131,9 +347,11 @@
 
   <!-- HUD -->
   <div id="hud">
-    <div class="hud-pill">
-      <div class="label">Score</div>
-      <div class="value" id="hud-score">0</div>
+    <div id="hud-left">
+      <div class="hud-pill">
+        <div class="label">Score</div>
+        <div class="value" id="hud-score">0</div>
+      </div>
     </div>
     <div id="hud-right">
       <div class="hud-pill">
@@ -143,8 +361,11 @@
       <div id="pause-btn" title="일시정지 (P)">⏸</div>
     </div>
   </div>
+  <div id="combo"><div class="x" id="combo-x">x2</div><div class="t">Coin Combo</div></div>
   <div id="powerup-bar"></div>
   <div class="flash" id="flash"></div>
+  <div id="toast-wrap"></div>
+  <div id="reward-pop"><div class="box"><div class="big" id="rp-ic">🎁</div><div class="amt" id="rp-amt">+100</div><div class="lbl" id="rp-lbl">Reward</div></div></div>
 
   <!-- Loader -->
   <div id="loader">
@@ -158,27 +379,69 @@
     <p>3D 엔진(Three.js)을 인터넷에서 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 페이지를 새로고침해 주세요.</p>
   </div>
 
-  <!-- Start menu -->
-  <div class="overlay" id="menu-overlay">
-    <div class="title">SUNSET<br/>RUNNER</div>
-    <div class="subtitle">석양을 달리는 무한 질주</div>
-    <div class="panel">
-      <div class="controls-grid">
-        <div><span class="k">← →</span> / A D · 좌우 이동</div>
-        <div><span class="k">↑</span> / W · 점프</div>
-        <div><span class="k">↓</span> / S · 슬라이드</div>
-        <div><span class="k">P</span> / ESC · 일시정지</div>
-      </div>
-      <div class="hint">모바일: 화면을 스와이프하세요</div>
+  <!-- ============ HOME SCREEN ============ -->
+  <div id="home" class="hidden">
+    <div id="wallet-bar">
+      <div class="wallet-chip coins"><span class="ic">🪙</span><span id="wallet-coins">0</span></div>
+      <div class="wallet-chip mile"><span class="ic">💎</span><span id="wallet-mile">0</span></div>
+      <div class="wallet-chip" id="settings-btn"><span class="ic">🔊</span></div>
     </div>
-    <button class="btn" id="start-btn">게임 시작 ▶</button>
+
+    <div id="home-hero">
+      <div class="brand">SUNSET<br/>RUNNER</div>
+      <div class="tag">석양을 달리는 무한 질주</div>
+    </div>
+
+    <div id="home-center">
+      <div id="char-name-tag">
+        <div class="role" id="home-best">BEST 0</div>
+        <div class="nm" id="home-char">러너</div>
+      </div>
+    </div>
+
+    <button id="home-play">게임 시작 ▶</button>
+
+    <div id="tabbar">
+      <div class="tab-btn" data-sheet="shop-sheet"><span class="ic">🛒</span><span class="tl">상점</span><span class="badge" id="badge-shop">!</span></div>
+      <div class="tab-btn" data-sheet="upgrade-sheet"><span class="ic">⬆️</span><span class="tl">업그레이드</span></div>
+      <div class="tab-btn" data-sheet="daily-sheet"><span class="ic">🎁</span><span class="tl">보상</span><span class="badge" id="badge-daily">!</span></div>
+      <div class="tab-btn" data-sheet="ach-sheet"><span class="ic">🏆</span><span class="tl">업적</span><span class="badge" id="badge-ach">!</span></div>
+    </div>
+  </div>
+
+  <!-- ============ SHOP (characters) ============ -->
+  <div class="sheet hidden" id="shop-sheet">
+    <div class="sheet-head"><h2>🛒 캐릭터 상점</h2><div class="close-x" data-close>✕</div></div>
+    <div class="sheet-sub">코인으로 캐릭터를 잠금 해제하고 장착하세요</div>
+    <div class="sheet-body" id="shop-body"></div>
+  </div>
+
+  <!-- ============ UPGRADES ============ -->
+  <div class="sheet hidden" id="upgrade-sheet">
+    <div class="sheet-head"><h2>⬆️ 업그레이드</h2><div class="close-x" data-close>✕</div></div>
+    <div class="sheet-sub">파워업과 능력을 영구적으로 강화하세요</div>
+    <div class="sheet-body" id="upgrade-body"></div>
+  </div>
+
+  <!-- ============ DAILY / MILEAGE ============ -->
+  <div class="sheet hidden" id="daily-sheet">
+    <div class="sheet-head"><h2>🎁 보상 센터</h2><div class="close-x" data-close>✕</div></div>
+    <div class="sheet-sub">매일 출석하고 마일리지를 코인으로 교환하세요</div>
+    <div class="sheet-body" id="daily-body"></div>
+  </div>
+
+  <!-- ============ ACHIEVEMENTS ============ -->
+  <div class="sheet hidden" id="ach-sheet">
+    <div class="sheet-head"><h2>🏆 업적</h2><div class="close-x" data-close>✕</div></div>
+    <div class="sheet-sub">도전 과제를 완료하고 코인을 받으세요</div>
+    <div class="sheet-body" id="ach-body"></div>
   </div>
 
   <!-- Pause -->
   <div class="overlay hidden" id="pause-overlay">
     <div class="title" style="font-size:clamp(34px,8vw,64px)">일시정지</div>
     <button class="btn" id="resume-btn">계속하기 ▶</button>
-    <button class="btn secondary" id="restart-from-pause">처음부터</button>
+    <button class="btn secondary" id="home-from-pause">홈으로</button>
   </div>
 
   <!-- Game over -->
@@ -191,10 +454,12 @@
       </div>
       <div class="stat-row" style="margin-top:14px">
         <div class="blk"><div class="v" style="font-size:24px" id="best-score">0</div><div class="l">Best</div></div>
+        <div class="blk"><div class="v" style="font-size:24px; color:var(--accent3)" id="run-mile">+0</div><div class="l">마일리지</div></div>
       </div>
       <div class="newbest" id="newbest" style="display:none">🏆 신기록 달성!</div>
     </div>
     <button class="btn" id="retry-btn">다시 도전 ▶</button>
+    <button class="btn secondary" id="home-from-over">홈으로</button>
   </div>
 
   <!-- Three.js via importmap (loaded in user's browser) -->
@@ -217,37 +482,131 @@
   }
 
   // ===================================================================
-  //  Sunset Runner — a Subway-Surfers style endless 3D runner
+  //  Sunset Runner — premium endless 3D runner with progression
   // ===================================================================
 
   // ---- Constants ----
-  const LANES = [-2.2, 0, 2.2];        // x positions of 3 lanes
-  const PLAYER_Z = 0;                   // player stays near origin; world scrolls toward +z
+  const LANES = [-2.2, 0, 2.2];
+  const PLAYER_Z = 0;
   const GRAVITY = -38;
   const JUMP_V = 14;
   const SLIDE_TIME = 0.62;
   const BASE_SPEED = 13;
-  const MAX_SPEED = 34;
-  const SPEED_RAMP = 0.42;              // speed gained per second
-  const SPAWN_AHEAD = -130;            // z where things spawn (far)
-  const DESPAWN_Z = 14;                // z behind camera -> recycle
+  const MAX_SPEED = 36;
+  const SPEED_RAMP = 0.42;
+  const SPAWN_AHEAD = -130;
+  const DESPAWN_Z = 14;
   const TILE_LEN = 30;
-  const SEG_GAP = 9;                   // distance between spawn rows
+  const SEG_GAP = 9;
 
-  // ---- Renderer / Scene ----
+  // ===================================================================
+  //  PERSISTENT SAVE DATA
+  // ===================================================================
+  const SAVE_KEY = 'sunset_save_v2';
+  const DEFAULT_SAVE = {
+    wallet: 0,            // total coins banked
+    mileage: 0,           // mileage points (premium currency)
+    best: 0,
+    totalCoins: 0,        // lifetime coins
+    totalDistance: 0,     // lifetime distance (m)
+    runs: 0,
+    owned: ['runner'],    // owned character ids
+    selected: 'runner',
+    upgrades: { magnet: 0, boots: 0, multiplier: 0, headstart: 0, shield: 0, x2: 0 },
+    daily: { lastClaim: 0, streak: 0 },
+    achClaimed: [],       // claimed achievement ids
+    muted: false,
+  };
+  let save = loadSave();
+  function loadSave() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (raw && typeof raw === 'object') return Object.assign(structuredClone(DEFAULT_SAVE), raw,
+        { upgrades: Object.assign({}, DEFAULT_SAVE.upgrades, raw.upgrades||{}),
+          daily: Object.assign({}, DEFAULT_SAVE.daily, raw.daily||{}) });
+    } catch(e){}
+    // migrate old best
+    const oldBest = parseInt(localStorage.getItem('sunset_best')||'0',10);
+    const s = structuredClone(DEFAULT_SAVE); s.best = oldBest || 0;
+    return s;
+  }
+  function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
+
+  // ===================================================================
+  //  CONTENT DATA — characters, upgrades, achievements, daily
+  // ===================================================================
+  const CHARACTERS = [
+    { id:'runner',  name:'러너',        role:'기본',     emoji:'🏃', price:0,
+      colors:{ skin:0xffd0a8, shirt:0xff5e8a, pants:0x3a4a8a, shoe:0xfff2d0, hat:0xffd86b }, trail:0xff7eb3 },
+    { id:'aqua',    name:'아쿠아',      role:'서퍼',     emoji:'🌊', price:300,
+      colors:{ skin:0xf2c9a0, shirt:0x33c7e0, pants:0x1f5f8a, shoe:0xd0fbff, hat:0x66e0ff }, trail:0x55ddff },
+    { id:'ninja',   name:'섀도우 닌자', role:'민첩',     emoji:'🥷', price:600,
+      colors:{ skin:0x2a2a3a, shirt:0x222233, pants:0x14141e, shoe:0x44445a, hat:0xcc2244 }, trail:0x7a5cff },
+    { id:'neon',    name:'네온 라이더', role:'사이버',   emoji:'🤖', price:900,
+      colors:{ skin:0xcfd8ff, shirt:0x00ffd0, pants:0x2a1066, shoe:0xff00aa, hat:0x00ffd0 }, trail:0x00ffd0, glow:true },
+    { id:'astro',   name:'우주인',      role:'탐험가',   emoji:'🧑‍🚀', price:1400,
+      colors:{ skin:0xeef2ff, shirt:0xf0f4ff, pants:0xdde4f5, shoe:0xff7a3a, hat:0x88a0ff }, trail:0x99ccff },
+    { id:'phoenix', name:'피닉스',      role:'전설',     emoji:'🔥', price:2500,
+      colors:{ skin:0xffe0b0, shirt:0xff5a1f, pants:0x8a1a00, shoe:0xffd000, hat:0xff8800 }, trail:0xff5500, glow:true },
+    { id:'golden',  name:'골든 스타',   role:'프리미엄', emoji:'👑', price:5000,
+      colors:{ skin:0xfff0c0, shirt:0xffd000, pants:0xb8860b, shoe:0xfff7d0, hat:0xffe24a }, trail:0xffd000, glow:true },
+  ];
+  const charById = (id)=>CHARACTERS.find(c=>c.id===id)||CHARACTERS[0];
+
+  // upgrades: each level scales effect; cost grows
+  const UPGRADES = [
+    { id:'magnet',    name:'코인 자석',      emoji:'🧲', max:5, desc:(l)=>`자석 지속 +${l*1.5}초`,           cost:(l)=>120*(l+1) },
+    { id:'boots',     name:'점프 부츠',      emoji:'🚀', max:5, desc:(l)=>`부스트 지속 +${l*1.5}초`,         cost:(l)=>120*(l+1) },
+    { id:'x2',        name:'스코어 x2',      emoji:'✨', max:5, desc:(l)=>`x2 지속 +${l*2}초`,               cost:(l)=>150*(l+1) },
+    { id:'multiplier',name:'코인 가치',      emoji:'💰', max:5, desc:(l)=>`코인당 +${l} 보너스`,            cost:(l)=>200*(l+1) },
+    { id:'headstart', name:'스타트 부스트',  emoji:'⚡', max:3, desc:(l)=>`시작 시 ${l*120}m 가속 출발`,    cost:(l)=>400*(l+1) },
+    { id:'shield',    name:'시작 보호막',    emoji:'🛡️', max:3, desc:(l)=>`시작 시 보호막 ${l}회`,          cost:(l)=>500*(l+1) },
+  ];
+  const upById = (id)=>UPGRADES.find(u=>u.id===id);
+
+  // achievements: stat-based; reward coins
+  const ACHIEVEMENTS = [
+    { id:'first',   name:'첫 발걸음',     emoji:'👟', desc:'한 번 플레이하기',          goal:1,     reward:50,   stat:()=>save.runs },
+    { id:'run10',   name:'단골 러너',     emoji:'🏃', desc:'10번 플레이하기',           goal:10,    reward:150,  stat:()=>save.runs },
+    { id:'coin500', name:'동전 수집가',   emoji:'🪙', desc:'누적 코인 500개',           goal:500,   reward:200,  stat:()=>save.totalCoins },
+    { id:'coin5k',  name:'부자',          emoji:'💰', desc:'누적 코인 5,000개',         goal:5000,  reward:500,  stat:()=>save.totalCoins },
+    { id:'dist5k',  name:'마라토너',      emoji:'🌄', desc:'누적 거리 5,000m',          goal:5000,  reward:300,  stat:()=>Math.floor(save.totalDistance) },
+    { id:'dist20k', name:'대륙 횡단',     emoji:'🗺️', desc:'누적 거리 20,000m',         goal:20000, reward:800,  stat:()=>Math.floor(save.totalDistance) },
+    { id:'score1k', name:'고득점',        emoji:'⭐', desc:'한 판에 1,000점',           goal:1000,  reward:250,  stat:()=>save.best },
+    { id:'score3k', name:'에이스',        emoji:'🌟', desc:'한 판에 3,000점',           goal:3000,  reward:600,  stat:()=>save.best },
+    { id:'collect3',name:'컬렉터',        emoji:'🎭', desc:'캐릭터 3개 보유',           goal:3,     reward:400,  stat:()=>save.owned.length },
+  ];
+
+  // daily rewards (7-day cycle)
+  const DAILY = [
+    { ic:'🪙', coins:50,   mile:0 },
+    { ic:'🪙', coins:80,   mile:0 },
+    { ic:'💎', coins:0,    mile:20 },
+    { ic:'🪙', coins:150,  mile:0 },
+    { ic:'💎', coins:0,    mile:40 },
+    { ic:'🪙', coins:250,  mile:0 },
+    { ic:'👑', coins:500,  mile:80 },
+  ];
+
+  // ===================================================================
+  //  Renderer / Scene
+  // ===================================================================
   const canvas = document.getElementById('game-canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
 
   const scene = new THREE.Scene();
   const FOG_COLOR = new THREE.Color(0xff9966);
-  scene.fog = new THREE.Fog(FOG_COLOR, 35, 115);
+  scene.fog = new THREE.Fog(FOG_COLOR, 38, 120);
 
-  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 400);
-  camera.position.set(0, 5.2, 9.5);
+  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
+  const CAM_BASE = new THREE.Vector3(0, 5.2, 9.5);
+  camera.position.copy(CAM_BASE);
   camera.lookAt(0, 1.6, -14);
 
   // ---- Lights (warm sunset) ----
@@ -255,22 +614,23 @@
   scene.add(ambient);
   const hemi = new THREE.HemisphereLight(0xffc6e0, 0x4a2b5e, 0.6);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffb27a, 1.6);
+  const sun = new THREE.DirectionalLight(0xffb27a, 1.7);
   sun.position.set(-8, 12, -18);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
   sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
   sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -8;
+  sun.shadow.bias = -0.0004;
   scene.add(sun);
   scene.add(sun.target);
 
   // ---- Sky dome (gradient) ----
-  const skyGeo = new THREE.SphereGeometry(300, 32, 16);
+  const skyGeo = new THREE.SphereGeometry(360, 32, 16);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
-      top:    { value: new THREE.Color(0x2a1a5e) },
+      top:    { value: new THREE.Color(0x241a5e) },
       mid:    { value: new THREE.Color(0xff7eb3) },
       bottom: { value: new THREE.Color(0xffd36b) }
     },
@@ -292,6 +652,25 @@
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
 
+  // ---- Stars (upper sky) ----
+  (function addStars(){
+    const N = 320;
+    const pos = new Float32Array(N*3);
+    for (let i=0;i<N;i++){
+      const r = 300;
+      const theta = Math.random()*Math.PI*2;
+      const phi = Math.random()*Math.PI*0.42; // upper portion
+      pos[i*3]   = r*Math.sin(phi)*Math.cos(theta);
+      pos[i*3+1] = r*Math.cos(phi) + 40;
+      pos[i*3+2] = -Math.abs(r*Math.sin(phi)*Math.sin(theta)) - 40;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    const m = new THREE.PointsMaterial({ color:0xffffff, size:1.4, transparent:true, opacity:.85, fog:false, sizeAttenuation:true });
+    const pts = new THREE.Points(g,m);
+    scene.add(pts);
+  })();
+
   // ---- The sun disk (glowing) ----
   const sunDisk = new THREE.Mesh(
     new THREE.CircleGeometry(22, 48),
@@ -300,11 +679,23 @@
   sunDisk.position.set(-22, 16, -150);
   scene.add(sunDisk);
   const sunGlow = new THREE.Mesh(
-    new THREE.CircleGeometry(34, 48),
+    new THREE.CircleGeometry(36, 48),
     new THREE.MeshBasicMaterial({ color: 0xffb27a, transparent: true, opacity: 0.35, fog: false })
   );
   sunGlow.position.copy(sunDisk.position); sunGlow.position.z -= 1;
   scene.add(sunGlow);
+
+  // ---- distant mountains ----
+  (function mountains(){
+    const mat = new THREE.MeshBasicMaterial({ color: 0x3a2057, fog:false });
+    for (let i=0;i<2;i++){
+      const g = new THREE.ConeGeometry(40+i*16, 30+i*10, 4);
+      const m = new THREE.Mesh(g, mat);
+      m.position.set(i===0?-40:48, 6, -190);
+      m.rotation.y = Math.PI/4;
+      scene.add(m);
+    }
+  })();
 
   // ===================================================================
   //  Ground (scrolling tiles) + lane lines
@@ -320,7 +711,15 @@
     );
     base.position.y = -0.25; base.receiveShadow = true;
     g.add(base);
-    // lane separators
+    // glowing edge rails
+    for (let i = -1; i <= 1; i += 2) {
+      const rail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.16, TILE_LEN),
+        new THREE.MeshStandardMaterial({ color: 0xffd0a0, emissive: 0xff7e44, emissiveIntensity: .9, roughness:.4 })
+      );
+      rail.position.set(i * 4.4, 0.06, 0);
+      g.add(rail);
+    }
     for (let i = -1; i <= 1; i += 2) {
       const line = new THREE.Mesh(
         new THREE.BoxGeometry(0.12, 0.02, TILE_LEN),
@@ -329,7 +728,6 @@
       line.position.set(i * 1.1, 0.02, 0);
       g.add(line);
     }
-    // dashes in center of each lane
     for (let lane of LANES) {
       for (let z = -TILE_LEN/2 + 2; z < TILE_LEN/2; z += 5) {
         const dash = new THREE.Mesh(
@@ -374,12 +772,21 @@
   function makeBuilding() {
     const h = 6 + Math.random() * 14;
     const colors = [0x3a2155, 0x53265c, 0x6e2e54, 0x402a66];
+    const grp = new THREE.Group();
     const b = new THREE.Mesh(
       new THREE.BoxGeometry(3 + Math.random() * 2, h, 3 + Math.random() * 2),
       new THREE.MeshStandardMaterial({ color: colors[(Math.random()*colors.length)|0], roughness: 1 })
     );
-    b.position.y = h / 2;
-    return b;
+    b.position.y = h / 2; grp.add(b);
+    // lit windows
+    const winMat = new THREE.MeshStandardMaterial({ color:0xffe9a8, emissive:0xffcc66, emissiveIntensity:.7 });
+    for (let wy=2; wy<h-1; wy+=2){
+      if (Math.random()<0.5) continue;
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.6,0.05), winMat);
+      w.position.set((Math.random()-0.5)*1.6, wy, 1.55);
+      grp.add(w);
+    }
+    return grp;
   }
   function makeScenery() {
     const g = new THREE.Group();
@@ -398,51 +805,129 @@
   }
 
   // ===================================================================
-  //  Player (primitive humanoid w/ run animation)
+  //  Player (rebuildable based on selected character)
   // ===================================================================
   const player = new THREE.Group();
   scene.add(player);
-  const skin = new THREE.MeshStandardMaterial({ color: 0xffd0a8, roughness: .7 });
-  const shirt = new THREE.MeshStandardMaterial({ color: 0xff5e8a, roughness: .6, emissive: 0x551122, emissiveIntensity: .15 });
-  const pants = new THREE.MeshStandardMaterial({ color: 0x3a4a8a, roughness: .7 });
-  const shoeMat = new THREE.MeshStandardMaterial({ color: 0xfff2d0, roughness: .5 });
+  let playerParts = null; // {armL,armR,legL,legR,shoeL,shoeR, glowMat}
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.0, 0.5), shirt);
-  torso.position.y = 1.35; torso.castShadow = true; player.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 16), skin);
-  head.position.y = 2.25; head.castShadow = true; player.add(head);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({color:0xffd86b, roughness:.5}));
-  cap.position.y = 2.4; player.add(cap);
-  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.35), new THREE.MeshStandardMaterial({color:0xffd86b}));
-  brim.position.set(0,2.32,0.4); player.add(brim);
-
-  function makeLimb(mat, w, h, d) {
-    const pivot = new THREE.Group();
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.y = -h/2; m.castShadow = true;
-    pivot.add(m);
-    return pivot;
+  function disposeGroup(grp){
+    grp.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); } });
   }
-  const armL = makeLimb(skin, 0.22, 0.9, 0.22); armL.position.set(-0.58, 1.78, 0); player.add(armL);
-  const armR = makeLimb(skin, 0.22, 0.9, 0.22); armR.position.set( 0.58, 1.78, 0); player.add(armR);
-  const legL = makeLimb(pants, 0.28, 0.95, 0.28); legL.position.set(-0.22, 0.9, 0); player.add(legL);
-  const legR = makeLimb(pants, 0.28, 0.95, 0.28); legR.position.set( 0.22, 0.9, 0); player.add(legR);
-  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.2,0.5), shoeMat); shoeL.position.set(-0.22,0.08,0.1); player.add(shoeL);
-  const shoeR = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.2,0.5), shoeMat); shoeR.position.set( 0.22,0.08,0.1); player.add(shoeR);
 
-  // hoverboard (hidden unless active)
-  const board = new THREE.Mesh(
-    new THREE.BoxGeometry(1.1, 0.18, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x6be3ff, emissive: 0x119, emissiveIntensity: .6, roughness: .3 })
-  );
-  board.position.y = 0.1; board.visible = false; player.add(board);
+  function buildPlayer(charId) {
+    // clear old
+    while (player.children.length) { const c = player.children[0]; player.remove(c); disposeGroup(c); }
+    const c = charById(charId);
+    const col = c.colors;
+    const ei = c.glow ? 0.55 : 0.12;
+    const skin = new THREE.MeshStandardMaterial({ color: col.skin, roughness: .7 });
+    const shirt = new THREE.MeshStandardMaterial({ color: col.shirt, roughness: .5, emissive: col.shirt, emissiveIntensity: ei*0.4 });
+    const pants = new THREE.MeshStandardMaterial({ color: col.pants, roughness: .7 });
+    const shoeMat = new THREE.MeshStandardMaterial({ color: col.shoe, roughness: .5 });
+    const hatMat = new THREE.MeshStandardMaterial({ color: col.hat, roughness:.5, emissive: col.hat, emissiveIntensity: ei });
 
-  // magnet aura
-  const aura = new THREE.Mesh(
-    new THREE.SphereGeometry(2.6, 16, 16),
-    new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.12, fog:false })
-  );
-  aura.position.y = 1.2; aura.visible = false; player.add(aura);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.0, 0.5), shirt);
+    torso.position.y = 1.35; torso.castShadow = true; player.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 16), skin);
+    head.position.y = 2.25; head.castShadow = true; player.add(head);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 16, 0, Math.PI*2, 0, Math.PI/2), hatMat);
+    cap.position.y = 2.4; player.add(cap);
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.35), hatMat);
+    brim.position.set(0,2.32,0.4); player.add(brim);
+
+    function makeLimb(mat, w, h, d) {
+      const pivot = new THREE.Group();
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.y = -h/2; m.castShadow = true;
+      pivot.add(m);
+      return pivot;
+    }
+    const armL = makeLimb(skin, 0.22, 0.9, 0.22); armL.position.set(-0.58, 1.78, 0); player.add(armL);
+    const armR = makeLimb(skin, 0.22, 0.9, 0.22); armR.position.set( 0.58, 1.78, 0); player.add(armR);
+    const legL = makeLimb(pants, 0.28, 0.95, 0.28); legL.position.set(-0.22, 0.9, 0); player.add(legL);
+    const legR = makeLimb(pants, 0.28, 0.95, 0.28); legR.position.set( 0.22, 0.9, 0); player.add(legR);
+    const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.2,0.5), shoeMat); shoeL.position.set(-0.22,0.08,0.1); player.add(shoeL);
+    const shoeR = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.2,0.5), shoeMat); shoeR.position.set( 0.22,0.08,0.1); player.add(shoeR);
+
+    // hoverboard
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.18, 2.4),
+      new THREE.MeshStandardMaterial({ color: 0x6be3ff, emissive: 0x119, emissiveIntensity: .6, roughness: .3 })
+    );
+    board.position.y = 0.1; board.visible = false; player.add(board);
+    // magnet aura
+    const aura = new THREE.Mesh(
+      new THREE.SphereGeometry(2.6, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.12, fog:false })
+    );
+    aura.position.y = 1.2; aura.visible = false; player.add(aura);
+    // shield bubble
+    const shieldMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.7, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0x66ffcc, transparent: true, opacity: 0.18, fog:false })
+    );
+    shieldMesh.position.y = 1.2; shieldMesh.visible = false; player.add(shieldMesh);
+
+    playerParts = { armL, armR, legL, legR, shoeL, shoeR, board, aura, shieldMesh, trailColor: c.trail };
+  }
+
+  // ===================================================================
+  //  Particle systems (coin burst + run trail)
+  // ===================================================================
+  const sparkPool = [];
+  const sparkGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  function getSpark(color){
+    let s = sparkPool.find(p=>!p.visible);
+    if (!s){ s = new THREE.Mesh(sparkGeo, new THREE.MeshBasicMaterial({transparent:true, fog:false})); s.userData={}; scene.add(s); sparkPool.push(s); }
+    s.material.color.set(color); s.material.opacity = 1; s.visible = true; s.scale.setScalar(1);
+    return s;
+  }
+  function burst(x,y,z,color,n=10){
+    for(let i=0;i<n;i++){
+      const s = getSpark(color);
+      s.position.set(x,y,z);
+      s.userData.v = new THREE.Vector3((Math.random()-0.5)*6,(Math.random()*4+2),(Math.random()-0.5)*6);
+      s.userData.life = 0.5 + Math.random()*0.3;
+      s.userData.t = 0;
+    }
+  }
+  function updateSparks(dt){
+    for(const s of sparkPool){
+      if(!s.visible) continue;
+      s.userData.t += dt;
+      const k = s.userData.t / s.userData.life;
+      if(k>=1){ s.visible=false; continue; }
+      s.userData.v.y += GRAVITY*0.5*dt;
+      s.position.addScaledVector(s.userData.v, dt);
+      s.material.opacity = 1-k;
+      s.scale.setScalar(1-k*0.6);
+    }
+  }
+  // trail ribbon
+  const trailPool = [];
+  const trailGeo = new THREE.SphereGeometry(0.18,6,6);
+  function emitTrail(){
+    if(!playerParts) return;
+    let t = trailPool.find(p=>!p.visible);
+    if(!t){ t = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({transparent:true, fog:false})); t.userData={}; scene.add(t); trailPool.push(t); }
+    t.material.color.set(playerParts.trailColor);
+    t.material.opacity = .6; t.visible = true;
+    t.position.set(player.position.x + (Math.random()-0.5)*0.4, player.position.y + 0.3 + Math.random()*0.6, PLAYER_Z + 0.4);
+    t.scale.setScalar(1);
+    t.userData.t = 0; t.userData.life = 0.4;
+  }
+  function updateTrail(dt){
+    for(const t of trailPool){
+      if(!t.visible) continue;
+      t.userData.t += dt;
+      const k = t.userData.t/t.userData.life;
+      if(k>=1){ t.visible=false; continue; }
+      t.position.z += G.speed*dt;
+      t.material.opacity = .6*(1-k);
+      t.scale.setScalar(1-k*0.7);
+    }
+  }
 
   // ===================================================================
   //  Object pools: obstacles, coins, powerups
@@ -464,18 +949,16 @@
       body.castShadow = true; body.receiveShadow = true; mesh.add(body);
       const roof = new THREE.Mesh(new THREE.BoxGeometry(w*1.05,0.3,d), new THREE.MeshStandardMaterial({color:0x9c3550}));
       roof.position.y = h/2; mesh.add(roof);
-      // windows
       for(let z=-d/2+1.2; z<d/2; z+=2){
         const win = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.8,1.0), new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcc66, emissiveIntensity:.5}));
         win.position.set(w/2,0.3,z); mesh.add(win);
         const win2 = win.clone(); win2.position.x = -w/2; mesh.add(win2);
       }
     } else if (type === 'low') {
-      // jump over
       w = 1.8; h = 0.9; d = 1.0; y = h/2;
       mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatLow);
       mesh.castShadow = true;
-    } else { // high barrier -> slide under
+    } else {
       w = 1.9; h = 1.1; d = 0.6; y = 1.9;
       mesh = new THREE.Group();
       const bar = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatHigh);
@@ -497,9 +980,8 @@
     return o;
   }
 
-  // ---- coins ----
   const coinGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 18);
-  const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd86b, metalness: .7, roughness: .25, emissive: 0x554400, emissiveIntensity:.4 });
+  const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd86b, metalness: .7, roughness: .25, emissive: 0x664400, emissiveIntensity:.5 });
   function getCoin() {
     let c = coins.find(m => !m.visible);
     if (!c) {
@@ -514,9 +996,8 @@
     return c;
   }
 
-  // ---- powerups ----
-  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover'];
-  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff };
+  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield'];
+  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc };
   function getPowerup(type) {
     let p = powerups.find(m => !m.visible);
     if (!p) {
@@ -540,46 +1021,49 @@
 
   function hideAll() {
     [...obstacles, ...coins, ...powerups].forEach(m => { m.visible = false; });
+    sparkPool.forEach(s=>s.visible=false);
+    trailPool.forEach(t=>t.visible=false);
   }
 
   // ===================================================================
   //  Game state
   // ===================================================================
-  const State = { MENU:'menu', PLAY:'play', PAUSE:'pause', OVER:'over' };
-  let state = State.MENU;
+  const State = { HOME:'home', PLAY:'play', PAUSE:'pause', OVER:'over' };
+  let state = State.HOME;
 
   const G = {
-    speed: BASE_SPEED,
-    distance: 0,
-    score: 0,
-    coins: 0,
-    lane: 1,
-    laneX: 0,
-    y: 0, vy: 0,
-    jumping: false,
-    sliding: false, slideT: 0,
-    runT: 0,
+    speed: BASE_SPEED, distance: 0, score: 0, coins: 0,
+    lane: 1, laneX: 0, y: 0, vy: 0,
+    jumping: false, sliding: false, slideT: 0, runT: 0,
     nextSpawnZ: SPAWN_AHEAD,
     powerups: { magnet:0, boots:0, x2:0 },
-    hover: false,
-    invuln: 0,
+    hover: false, invuln: 0, shields: 0,
+    combo: 0, comboT: 0,
+    shake: 0,
   };
-
-  let best = parseInt(localStorage.getItem('sunset_best') || '0', 10);
 
   function resetGame() {
     hideAll();
+    const u = save.upgrades;
     Object.assign(G, {
       speed: BASE_SPEED, distance: 0, score: 0, coins: 0,
       lane: 1, laneX: 0, y: 0, vy: 0, jumping: false,
       sliding: false, slideT: 0, runT: 0, nextSpawnZ: SPAWN_AHEAD,
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
+      shields: u.shield, combo: 0, comboT: 0, shake: 0,
     });
     player.position.set(0, 0, PLAYER_Z);
     player.rotation.set(0,0,0);
-    board.visible = false; aura.visible = false;
+    if(playerParts){ playerParts.board.visible=false; playerParts.aura.visible=false; playerParts.shieldMesh.visible = G.shields>0; }
+    // headstart: pre-accelerate + skip distance
+    if (u.headstart>0){
+      G.speed = Math.min(MAX_SPEED, BASE_SPEED + u.headstart*5);
+      G.distance = u.headstart*120;
+      G.score = G.distance*0.6;
+    }
     updateHUD();
     updatePowerupBar();
+    updateComboUI();
   }
 
   // ===================================================================
@@ -587,19 +1071,14 @@
   // ===================================================================
   function spawnRow(z) {
     const r = Math.random();
-    // occasionally an empty row for breathing room
     if (r < 0.12) { spawnCoinRow(z, (Math.random()*3)|0); return; }
-
     if (r < 0.32) {
-      // a train blocking 1-2 lanes
       const block = (Math.random()*3)|0;
       const o = getObstacle('train');
       o.position.set(LANES[block], o.userData.y, z - 3);
-      // place coins on a free lane
       const free = [0,1,2].filter(l => l !== block);
       spawnCoinRow(z, free[(Math.random()*free.length)|0]);
     } else if (r < 0.6) {
-      // low/high barriers across some lanes
       const count = 1 + ((Math.random()*2)|0);
       const lanesShuffled = [0,1,2].sort(()=>Math.random()-0.5);
       for (let i=0;i<count;i++){
@@ -608,11 +1087,9 @@
         o.position.set(LANES[lanesShuffled[i]], o.userData.y, z);
       }
       const freeLane = lanesShuffled[count] !== undefined ? lanesShuffled[count] : lanesShuffled[0];
-      // coins arc over a low barrier lane sometimes
       if (Math.random() > 0.5) spawnCoinArc(z, lanesShuffled[0]);
       else spawnCoinRow(z, freeLane);
     } else {
-      // coin lanes + maybe a powerup
       const lane = (Math.random()*3)|0;
       spawnCoinRow(z, lane);
       if (Math.random() < 0.22) {
@@ -624,10 +1101,7 @@
     }
   }
   function spawnCoinRow(z, lane) {
-    for (let i=0;i<5;i++){
-      const c = getCoin();
-      c.position.set(LANES[lane], 1.0, z - i*1.6);
-    }
+    for (let i=0;i<5;i++){ const c = getCoin(); c.position.set(LANES[lane], 1.0, z - i*1.6); }
   }
   function spawnCoinArc(z, lane) {
     for (let i=0;i<6;i++){
@@ -656,13 +1130,8 @@
   }
   function slide() {
     if (state !== State.PLAY) return;
-    if (!G.sliding && !G.jumping) {
-      G.sliding = true; G.slideT = SLIDE_TIME;
-      sfx('slide');
-    } else if (G.jumping) {
-      // fast-fall
-      G.vy = Math.min(G.vy, -6);
-    }
+    if (!G.sliding && !G.jumping) { G.sliding = true; G.slideT = SLIDE_TIME; sfx('slide'); }
+    else if (G.jumping) { G.vy = Math.min(G.vy, -6); }
   }
 
   window.addEventListener('keydown', (e) => {
@@ -671,12 +1140,11 @@
       case 'ArrowRight': case 'd': case 'D': moveLane(1); break;
       case 'ArrowUp': case 'w': case 'W': jump(); break;
       case 'ArrowDown': case 's': case 'S': slide(); break;
-      case 'p': case 'P': case 'Escape': togglePause(); break;
-      case ' ': if (state === State.MENU) startGame(); else if (state===State.OVER) startGame(); break;
+      case 'p': case 'P': case 'Escape': if(state===State.PLAY||state===State.PAUSE) togglePause(); break;
+      case ' ': if (state === State.OVER) startGame(); break;
     }
   });
 
-  // touch swipe
   let touchStart = null;
   canvas.addEventListener('touchstart', (e) => {
     touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
@@ -686,7 +1154,7 @@
     const dx = e.changedTouches[0].clientX - touchStart.x;
     const dy = e.changedTouches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
-    if (adx < 24 && ady < 24) { jump(); touchStart=null; return; } // tap = jump
+    if (adx < 24 && ady < 24) { jump(); touchStart=null; return; }
     if (adx > ady) { moveLane(dx > 0 ? 1 : -1); }
     else { if (dy > 0) slide(); else jump(); }
     touchStart = null;
@@ -698,7 +1166,7 @@
   let audioCtx = null;
   function initAudio() { if (!audioCtx) { try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} } }
   function sfx(type) {
-    if (!audioCtx) return;
+    if (!audioCtx || save.muted) return;
     const t = audioCtx.currentTime;
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
@@ -709,9 +1177,11 @@
     else if (type === 'slide'){ f = 500; o.frequency.setValueAtTime(500,t); o.frequency.exponentialRampToValueAtTime(180,t+0.18); wave='sawtooth'; vol=0.10; dur=0.18; }
     else if (type === 'move') { f = 420; dur=0.05; wave='sine'; vol=0.06; }
     else if (type === 'power'){ o.frequency.setValueAtTime(523,t); o.frequency.setValueAtTime(659,t+0.06); o.frequency.setValueAtTime(784,t+0.12); dur=0.22; wave='square'; vol=0.14; }
+    else if (type === 'buy')  { o.frequency.setValueAtTime(660,t); o.frequency.setValueAtTime(990,t+0.08); dur=0.2; wave='square'; vol=0.14; }
+    else if (type === 'reward'){ o.frequency.setValueAtTime(523,t); o.frequency.setValueAtTime(659,t+0.08); o.frequency.setValueAtTime(880,t+0.16); o.frequency.setValueAtTime(1046,t+0.24); dur=0.4; wave='triangle'; vol=0.16; }
     else if (type === 'crash'){ f = 120; o.frequency.setValueAtTime(160,t); o.frequency.exponentialRampToValueAtTime(40,t+0.4); wave='sawtooth'; vol=0.28; dur=0.45; }
     o.type = wave;
-    if (type!=='coin' && type!=='jump' && type!=='slide') o.frequency.setValueAtTime(f,t);
+    if (!['coin','jump','slide','power','buy','reward'].includes(type)) o.frequency.setValueAtTime(f,t);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.start(t); o.stop(t + dur + 0.02);
@@ -730,24 +1200,25 @@
   function intersect(a, om) {
     const hx = om.userData.half.x, hy = om.userData.half.y, hz = om.userData.half.z;
     const ox = om.position.x, oy = om.position.y, oz = om.position.z;
-    return Math.abs(a.x-ox) < a.hx+hx &&
-           Math.abs(a.y-oy) < a.hy+hy &&
-           Math.abs(a.z-oz) < a.hz+hz;
+    return Math.abs(a.x-ox) < a.hx+hx && Math.abs(a.y-oy) < a.hy+hy && Math.abs(a.z-oz) < a.hz+hz;
   }
 
   // ===================================================================
   //  Power-up handling
   // ===================================================================
-  const PW_DUR = { magnet: 7, boots: 7, x2: 9 };
+  function pwDur(type){
+    const u = save.upgrades;
+    if (type==='magnet') return 7 + u.magnet*1.5;
+    if (type==='boots')  return 7 + u.boots*1.5;
+    if (type==='x2')     return 9 + u.x2*2;
+    return 0;
+  }
   function activatePower(type) {
-    sfx('power');
-    flash();
-    if (type === 'hover') {
-      G.hover = true; board.visible = true;
-    } else {
-      G.powerups[type] = PW_DUR[type];
-      if (type === 'magnet') aura.visible = true;
-    }
+    sfx('power'); flash();
+    burst(player.position.x, 1.4, PLAYER_Z, pwColors[type], 14);
+    if (type === 'hover') { G.hover = true; playerParts.board.visible = true; }
+    else if (type === 'shield') { G.shields++; playerParts.shieldMesh.visible = true; }
+    else { G.powerups[type] = pwDur(type); if (type === 'magnet') playerParts.aura.visible = true; }
     updatePowerupBar();
   }
 
@@ -758,11 +1229,19 @@
     if (G.powerups.boots > 0)  chips.push(['🚀', Math.ceil(G.powerups.boots)]);
     if (G.powerups.x2 > 0)     chips.push(['✨x2', Math.ceil(G.powerups.x2)]);
     if (G.hover)               chips.push(['🛹', '∞']);
+    if (G.shields > 0)         chips.push(['🛡️', G.shields]);
     bar.innerHTML = chips.map(c => `<div class="pw-chip">${c[0]} <b>${c[1]}</b></div>`).join('');
   }
 
+  function updateComboUI(){
+    const el = document.getElementById('combo');
+    if (G.combo >= 5){ document.getElementById('combo-x').textContent = 'x'+comboMult(); el.classList.add('show'); }
+    else el.classList.remove('show');
+  }
+  function comboMult(){ return G.combo>=20?3 : G.combo>=10?2 : 1; }
+
   // ===================================================================
-  //  HUD / overlays
+  //  HUD / overlays / toasts
   // ===================================================================
   const el = (id) => document.getElementById(id);
   function updateHUD() {
@@ -777,37 +1256,303 @@
   function show(id){ el(id).classList.remove('hidden'); }
   function hide(id){ el(id).classList.add('hidden'); }
 
+  function toast(msg, icon='✨'){
+    const w = el('toast-wrap');
+    const d = document.createElement('div');
+    d.className = 'toast';
+    d.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+    w.appendChild(d);
+    setTimeout(()=>d.remove(), 3000);
+  }
+  function rewardPopup(icon, amt, lbl){
+    el('rp-ic').textContent = icon;
+    el('rp-amt').textContent = amt;
+    el('rp-lbl').textContent = lbl;
+    el('reward-pop').classList.add('show');
+    sfx('reward');
+    setTimeout(()=>el('reward-pop').classList.remove('show'), 1400);
+  }
+
+  // ===================================================================
+  //  Game flow
+  // ===================================================================
   function startGame() {
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (!playerParts || playerParts._charId !== save.selected) { buildPlayer(save.selected); playerParts._charId = save.selected; }
     resetGame();
     state = State.PLAY;
-    hide('menu-overlay'); hide('over-overlay'); hide('pause-overlay');
+    hide('home'); hide('over-overlay'); hide('pause-overlay');
+    closeAllSheets();
     el('hud').classList.add('show');
   }
   function togglePause() {
     if (state === State.PLAY) { state = State.PAUSE; show('pause-overlay'); }
     else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
   }
+  function goHome() {
+    state = State.HOME;
+    hide('pause-overlay'); hide('over-overlay');
+    el('hud').classList.remove('show');
+    show('home');
+    refreshHome();
+  }
   function gameOver() {
     state = State.OVER;
     sfx('crash');
+    G.shake = 0.6;
     const sc = Math.floor(G.score);
+    const dist = Math.floor(G.distance);
+    // bank coins + mileage
+    const mileGain = Math.floor(dist/100) + Math.floor(G.coins/10);
+    save.wallet += G.coins;
+    save.totalCoins += G.coins;
+    save.totalDistance += dist;
+    save.mileage += mileGain;
+    save.runs += 1;
+    let isBest = false;
+    if (sc > save.best) { save.best = sc; isBest = true; }
+    persist();
+
     el('final-score').textContent = sc;
     el('final-coins').textContent = G.coins;
-    let isBest = false;
-    if (sc > best) { best = sc; localStorage.setItem('sunset_best', String(best)); isBest = true; }
-    el('best-score').textContent = best;
+    el('best-score').textContent = save.best;
+    el('run-mile').textContent = '+'+mileGain;
     el('newbest').style.display = isBest ? 'block' : 'none';
     el('hud').classList.remove('show');
     show('over-overlay');
+    checkAchievements(true);
   }
 
-  el('start-btn').addEventListener('click', startGame);
+  el('home-play').addEventListener('click', startGame);
   el('retry-btn').addEventListener('click', startGame);
   el('resume-btn').addEventListener('click', togglePause);
-  el('restart-from-pause').addEventListener('click', startGame);
+  el('home-from-pause').addEventListener('click', goHome);
+  el('home-from-over').addEventListener('click', goHome);
   el('pause-btn').addEventListener('click', togglePause);
+
+  // settings (mute toggle)
+  el('settings-btn').addEventListener('click', ()=>{
+    save.muted = !save.muted; persist();
+    el('settings-btn').querySelector('.ic').textContent = save.muted ? '🔇' : '🔊';
+    toast(save.muted ? '음소거됨' : '소리 켜짐', save.muted?'🔇':'🔊');
+  });
+
+  // ===================================================================
+  //  HOME refresh + tabs
+  // ===================================================================
+  function refreshHome() {
+    el('wallet-coins').textContent = save.wallet.toLocaleString();
+    el('wallet-mile').textContent = save.mileage.toLocaleString();
+    el('home-best').textContent = 'BEST ' + save.best.toLocaleString();
+    el('home-char').textContent = charById(save.selected).name;
+    el('settings-btn').querySelector('.ic').textContent = save.muted ? '🔇' : '🔊';
+    updateBadges();
+  }
+  function updateBadges() {
+    // shop: any affordable & unowned character
+    const canBuyChar = CHARACTERS.some(c=>!save.owned.includes(c.id) && save.wallet>=c.price);
+    el('badge-shop').classList.toggle('show', canBuyChar);
+    // daily: claimable today
+    el('badge-daily').classList.toggle('show', canClaimDaily());
+    // achievements: any claimable
+    const claimableAch = ACHIEVEMENTS.some(a=>a.stat()>=a.goal && !save.achClaimed.includes(a.id));
+    el('badge-ach').classList.toggle('show', claimableAch);
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = b.dataset.sheet;
+      if (id==='shop-sheet') renderShop();
+      else if (id==='upgrade-sheet') renderUpgrades();
+      else if (id==='daily-sheet') renderDaily();
+      else if (id==='ach-sheet') renderAch();
+      show(id);
+    });
+  });
+  document.querySelectorAll('[data-close]').forEach(x=>{
+    x.addEventListener('click', ()=>{ closeAllSheets(); refreshHome(); });
+  });
+  function closeAllSheets(){ document.querySelectorAll('.sheet').forEach(s=>s.classList.add('hidden')); }
+
+  function hex(c){ return '#'+c.toString(16).padStart(6,'0'); }
+
+  // ---- SHOP render ----
+  function renderShop() {
+    const body = el('shop-body');
+    body.innerHTML = '';
+    CHARACTERS.forEach(c=>{
+      const owned = save.owned.includes(c.id);
+      const equipped = save.selected === c.id;
+      const card = document.createElement('div');
+      card.className = 'card' + (owned?'':' locked');
+      const grad = `linear-gradient(135deg, ${hex(c.colors.shirt)}, ${hex(c.colors.hat)})`;
+      let actHtml;
+      if (equipped) actHtml = `<button class="mini-btn equipped" disabled>장착됨</button>`;
+      else if (owned) actHtml = `<button class="mini-btn owned" data-equip="${c.id}">장착</button>`;
+      else actHtml = `<div class="price">🪙 ${c.price.toLocaleString()}</div><button class="mini-btn" data-buy="${c.id}" ${save.wallet<c.price?'disabled':''}>구매</button>`;
+      card.innerHTML = `
+        <div class="swatch" style="background:${grad}">${c.emoji}</div>
+        <div class="info"><div class="nm">${c.name}</div><div class="ds">${c.role} 캐릭터</div></div>
+        <div class="act">${actHtml}</div>`;
+      body.appendChild(card);
+    });
+    body.querySelectorAll('[data-buy]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buy)));
+    body.querySelectorAll('[data-equip]').forEach(btn=>btn.addEventListener('click', ()=>{
+      save.selected = btn.dataset.equip; persist();
+      buildPlayer(save.selected); playerParts._charId = save.selected;
+      sfx('buy'); renderShop(); refreshHome();
+    }));
+  }
+  function buyChar(id){
+    const c = charById(id);
+    if (save.owned.includes(id) || save.wallet < c.price) return;
+    save.wallet -= c.price; save.owned.push(id); save.selected = id;
+    persist(); buildPlayer(id); playerParts._charId = id;
+    rewardPopup(c.emoji, c.name, '해금 & 장착!');
+    renderShop(); refreshHome(); checkAchievements();
+  }
+
+  // ---- UPGRADES render ----
+  function renderUpgrades() {
+    const body = el('upgrade-body');
+    body.innerHTML = '';
+    UPGRADES.forEach(u=>{
+      const lv = save.upgrades[u.id]||0;
+      const maxed = lv>=u.max;
+      const cost = maxed?0:u.cost(lv);
+      const card = document.createElement('div');
+      card.className = 'card';
+      let bars = '';
+      for(let i=0;i<u.max;i++) bars += `<i class="${i<lv?'on':''}"></i>`;
+      let actHtml = maxed
+        ? `<button class="mini-btn max" disabled>MAX</button>`
+        : `<div class="price">🪙 ${cost.toLocaleString()}</div><button class="mini-btn" data-up="${u.id}" ${save.wallet<cost?'disabled':''}>강화</button>`;
+      card.innerHTML = `
+        <div class="swatch" style="background:linear-gradient(135deg,#ffd86b,#ff7eb3)">${u.emoji}</div>
+        <div class="info"><div class="nm">${u.name}</div><div class="ds">${u.desc(lv)}</div><div class="lvbar">${bars}</div></div>
+        <div class="act">${actHtml}</div>`;
+      body.appendChild(card);
+    });
+    body.querySelectorAll('[data-up]').forEach(btn=>btn.addEventListener('click', ()=>buyUpgrade(btn.dataset.up)));
+  }
+  function buyUpgrade(id){
+    const u = upById(id);
+    const lv = save.upgrades[id]||0;
+    if (lv>=u.max) return;
+    const cost = u.cost(lv);
+    if (save.wallet < cost) return;
+    save.wallet -= cost; save.upgrades[id] = lv+1;
+    persist(); sfx('buy');
+    toast(`${u.name} Lv.${lv+1}`, u.emoji);
+    renderUpgrades(); refreshHome();
+  }
+
+  // ---- DAILY + MILEAGE render ----
+  function dayIndex(){ return Math.floor(Date.now()/86400000); }
+  function canClaimDaily(){ return dayIndex() > save.daily.lastClaim; }
+  function renderDaily() {
+    const body = el('daily-body');
+    const streak = canClaimDaily() ? (save.daily.lastClaim === dayIndex()-1 ? save.daily.streak : 0) : save.daily.streak;
+    const todayIdx = streak % 7;
+    let cells = '';
+    DAILY.forEach((d,i)=>{
+      const claimed = !canClaimDaily() ? (i < (save.daily.streak%7===0?7:save.daily.streak%7)) && i<=todayIdx
+                                       : i < todayIdx;
+      const isToday = canClaimDaily() && i===todayIdx;
+      const amt = d.coins ? `🪙${d.coins}` : `💎${d.mile}`;
+      cells += `<div class="day-cell ${isToday?'today':''} ${(!isToday && i<todayIdx)?'claimed':''}"><div class="d">DAY ${i+1}</div><div class="r">${d.ic}</div><div class="a">${amt}</div></div>`;
+    });
+    body.innerHTML = `
+      <div class="card" style="flex-direction:column; align-items:stretch; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div><div class="nm" style="font-size:17px;font-weight:bold;">📅 일일 출석</div>
+          <div class="ds" style="font-size:12px;opacity:.7;">연속 출석 ${save.daily.streak}일 · 7일마다 순환</div></div>
+          <button class="mini-btn" id="claim-daily" ${canClaimDaily()?'':'disabled'}>${canClaimDaily()?'받기':'완료'}</button>
+        </div>
+        <div class="daily-grid">${cells}</div>
+      </div>
+      <div class="card" style="flex-direction:column; align-items:stretch; gap:12px;">
+        <div class="nm" style="font-size:17px;font-weight:bold;">💎 마일리지 교환소</div>
+        <div class="ds" style="font-size:12px;opacity:.7;">보유 마일리지: <b style="color:var(--accent3)">${save.mileage.toLocaleString()}💎</b> · 거리와 코인으로 적립됩니다</div>
+        <div id="mile-shop" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>`;
+    el('claim-daily').addEventListener('click', claimDaily);
+    // mileage exchange options
+    const MILE_OPTS = [
+      { mile:20,  coins:300,  label:'코인 꾸러미' },
+      { mile:50,  coins:900,  label:'코인 상자' },
+      { mile:120, coins:2500, label:'코인 금고' },
+    ];
+    const ms = el('mile-shop');
+    MILE_OPTS.forEach(o=>{
+      const row = document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.18);border-radius:12px;padding:10px 14px;';
+      row.innerHTML = `<div><b>${o.label}</b><div style="font-size:12px;opacity:.7;">💎${o.mile} → 🪙${o.coins.toLocaleString()}</div></div>
+        <button class="mini-btn" data-mile="${o.mile}" data-coins="${o.coins}" ${save.mileage<o.mile?'disabled':''}>교환</button>`;
+      ms.appendChild(row);
+    });
+    ms.querySelectorAll('[data-mile]').forEach(btn=>btn.addEventListener('click', ()=>{
+      const m = +btn.dataset.mile, co = +btn.dataset.coins;
+      if (save.mileage < m) return;
+      save.mileage -= m; save.wallet += co; persist();
+      rewardPopup('🪙', '+'+co.toLocaleString(), '코인 교환!');
+      renderDaily(); refreshHome();
+    }));
+  }
+  function claimDaily(){
+    if (!canClaimDaily()) return;
+    // streak continues if yesterday, else reset
+    if (save.daily.lastClaim === dayIndex()-1) save.daily.streak += 1;
+    else save.daily.streak = 1;
+    save.daily.lastClaim = dayIndex();
+    const idx = (save.daily.streak-1) % 7;
+    const d = DAILY[idx];
+    if (d.coins) save.wallet += d.coins;
+    if (d.mile) save.mileage += d.mile;
+    persist();
+    rewardPopup(d.ic, d.coins?('+'+d.coins+'🪙'):('+'+d.mile+'💎'), `${save.daily.streak}일 연속 출석!`);
+    renderDaily(); refreshHome();
+  }
+
+  // ---- ACHIEVEMENTS render ----
+  function renderAch() {
+    const body = el('ach-body');
+    body.innerHTML = '';
+    ACHIEVEMENTS.forEach(a=>{
+      const cur = a.stat();
+      const done = cur>=a.goal;
+      const claimed = save.achClaimed.includes(a.id);
+      const pct = Math.min(100, Math.floor(cur/a.goal*100));
+      const row = document.createElement('div');
+      row.className = 'ach' + (done?' done':'') + (claimed?' claimed':'');
+      let act = '';
+      if (claimed) act = `<button class="mini-btn owned" disabled>완료</button>`;
+      else if (done) act = `<button class="mini-btn" data-ach="${a.id}">🪙${a.reward}</button>`;
+      else act = `<div style="font-size:12px;opacity:.6;text-align:right;">🪙${a.reward}</div>`;
+      row.innerHTML = `
+        <div class="ic">${a.emoji}</div>
+        <div class="info"><div class="nm">${a.name}</div><div class="ds">${a.desc}</div>
+          <div class="prog">${Math.min(cur,a.goal).toLocaleString()} / ${a.goal.toLocaleString()}</div>
+          <div class="bar"><i style="width:${pct}%"></i></div></div>
+        <div class="claim">${act}</div>`;
+      body.appendChild(row);
+    });
+    body.querySelectorAll('[data-ach]').forEach(btn=>btn.addEventListener('click', ()=>claimAch(btn.dataset.ach)));
+  }
+  function claimAch(id){
+    const a = ACHIEVEMENTS.find(x=>x.id===id);
+    if (!a || save.achClaimed.includes(id) || a.stat()<a.goal) return;
+    save.achClaimed.push(id); save.wallet += a.reward; persist();
+    rewardPopup(a.emoji, '+'+a.reward+'🪙', a.name);
+    renderAch(); refreshHome();
+  }
+  // notify (during/after run) about newly completed achievements
+  function checkAchievements(notify){
+    const newly = ACHIEVEMENTS.filter(a=>a.stat()>=a.goal && !save.achClaimed.includes(a.id) && !a._notified);
+    if (notify) newly.forEach(a=>{ a._notified = true; toast(`업적 달성: ${a.name}`, a.emoji); });
+    updateBadges();
+  }
 
   // ===================================================================
   //  Main loop
@@ -815,89 +1560,84 @@
   const clock = new THREE.Clock();
 
   function update(dt) {
+    // home background idle scroll
+    if (state === State.HOME) {
+      const move = 6*dt;
+      for (const t of groundTiles){ t.position.z += move; if (t.position.z > TILE_LEN*1.5) t.position.z -= groundTiles.length*TILE_LEN; }
+      for (const s of sceneryItems){ s.position.z += move; if (s.position.z > 20) s.position.z -= sceneryItems.length*16; }
+      return;
+    }
     if (state !== State.PLAY) return;
 
-    // speed ramp
     G.speed = Math.min(MAX_SPEED, G.speed + SPEED_RAMP * dt);
     const move = G.speed * dt;
     G.distance += move;
     G.score += move * (G.powerups.x2 > 0 ? 2 : 1) * 0.6;
 
-    // lane interpolation
     const targetX = LANES[G.lane];
     G.laneX += (targetX - G.laneX) * Math.min(1, dt * 14);
 
-    // jump / gravity
     if (G.jumping) {
       G.vy += GRAVITY * dt;
       G.y += G.vy * dt;
       if (G.y <= 0) { G.y = 0; G.vy = 0; G.jumping = false; }
     }
-    // slide timer
-    if (G.sliding) {
-      G.slideT -= dt;
-      if (G.slideT <= 0) G.sliding = false;
-    }
+    if (G.sliding) { G.slideT -= dt; if (G.slideT <= 0) G.sliding = false; }
 
-    // apply to player mesh
     player.position.x = G.laneX;
     player.position.y = G.y + (G.hover ? 0.4 : 0);
-    // poses
-    if (G.sliding) {
-      player.rotation.x = -1.15;
-      player.position.y = G.y + 0.1;
-    } else {
-      player.rotation.x += (0 - player.rotation.x) * Math.min(1, dt*16);
-    }
-    // run animation
+    if (G.sliding) { player.rotation.x = -1.15; player.position.y = G.y + 0.1; }
+    else { player.rotation.x += (0 - player.rotation.x) * Math.min(1, dt*16); }
+
     G.runT += dt * (8 + G.speed*0.25);
     const swing = Math.sin(G.runT) * (G.jumping ? 0.4 : 1.0);
+    const pp = playerParts;
     if (!G.sliding) {
-      armL.rotation.x = swing * 1.1; armR.rotation.x = -swing * 1.1;
-      legL.rotation.x = -swing * 1.2; legR.rotation.x = swing * 1.2;
-      shoeL.position.z = 0.1 - Math.sin(G.runT)*0.0; // keep simple
+      pp.armL.rotation.x = swing * 1.1; pp.armR.rotation.x = -swing * 1.1;
+      pp.legL.rotation.x = -swing * 1.2; pp.legR.rotation.x = swing * 1.2;
     } else {
-      armL.rotation.x = 1.4; armR.rotation.x = 1.4;
-      legL.rotation.x = 0; legR.rotation.x = 0;
+      pp.armL.rotation.x = 1.4; pp.armR.rotation.x = 1.4;
+      pp.legL.rotation.x = 0; pp.legR.rotation.x = 0;
     }
-    // hover bob
     if (G.hover) player.position.y += Math.sin(G.runT*0.5)*0.06;
+    if (pp.aura.visible) pp.aura.rotation.y += dt*2;
+    if (pp.shieldMesh.visible) { pp.shieldMesh.rotation.y += dt*1.5; pp.shieldMesh.material.opacity = 0.14 + Math.sin(clock.elapsedTime*4)*0.06; }
 
-    // power-up timers
+    // emit run trail
+    if (Math.random() < 0.6) emitTrail();
+    updateTrail(dt);
+    updateSparks(dt);
+
+    // combo decay
+    if (G.comboT > 0){ G.comboT -= dt; if (G.comboT<=0){ G.combo=0; updateComboUI(); } }
+
     let pwChanged = false;
     for (const k of ['magnet','boots','x2']) {
       if (G.powerups[k] > 0) {
         G.powerups[k] -= dt;
-        if (G.powerups[k] <= 0) { G.powerups[k] = 0; if (k==='magnet') aura.visible=false; }
+        if (G.powerups[k] <= 0) { G.powerups[k] = 0; if (k==='magnet') pp.aura.visible=false; }
         pwChanged = true;
       }
     }
     if (pwChanged) updatePowerupBar();
     if (G.invuln > 0) G.invuln -= dt;
 
-    // scroll ground
-    for (const t of groundTiles) {
-      t.position.z += move;
-      if (t.position.z > TILE_LEN * 1.5) t.position.z -= groundTiles.length * TILE_LEN;
-    }
-    for (const s of sceneryItems) {
-      s.position.z += move;
-      if (s.position.z > 20) s.position.z -= sceneryItems.length * 16;
-    }
+    for (const t of groundTiles) { t.position.z += move; if (t.position.z > TILE_LEN * 1.5) t.position.z -= groundTiles.length * TILE_LEN; }
+    for (const s of sceneryItems) { s.position.z += move; if (s.position.z > 20) s.position.z -= sceneryItems.length * 16; }
 
-    // move world objects toward player & recycle
     const pBox = playerBox();
     for (const o of obstacles) {
       if (!o.visible) continue;
       o.position.z += move;
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
       if (G.invuln <= 0 && intersect(pBox, o)) {
-        if (G.hover) { G.hover = false; board.visible = false; G.invuln = 1.0; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; }
+        if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
+        else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
         else { gameOver(); return; }
       }
     }
-    // coins
     const magnet = G.powerups.magnet > 0;
+    const coinBonus = save.upgrades.multiplier;
     for (const c of coins) {
       if (!c.visible) continue;
       c.position.z += move;
@@ -912,33 +1652,41 @@
       if (c.position.z > DESPAWN_Z) { c.visible = false; continue; }
       if (intersect(pBox, c)) {
         c.visible = false;
-        G.coins++; G.score += (G.powerups.x2>0?2:1) * 5;
+        G.combo++; G.comboT = 2.0; updateComboUI();
+        const cm = comboMult();
+        const gain = (1 + coinBonus) * cm;
+        G.coins += gain;
+        G.score += (G.powerups.x2>0?2:1) * 5 * cm;
+        burst(c.position.x, c.position.y, c.position.z, 0xffd86b, 6);
         sfx('coin');
       }
     }
-    // powerups
     for (const p of powerups) {
       if (!p.visible) continue;
       p.position.z += move;
       p.rotation.y += dt * 2;
       p.userData.core.rotation.x += dt * 3;
+      p.position.y = 1.2 + Math.sin(clock.elapsedTime*3 + p.position.z)*0.15;
       if (p.position.z > DESPAWN_Z) { p.visible = false; continue; }
       if (intersect(pBox, p)) { p.visible = false; activatePower(p.userData.ptype); }
     }
 
-    // spawn ahead
     G.nextSpawnZ += move;
-    while (G.nextSpawnZ > SPAWN_AHEAD + SEG_GAP) {
-      spawnRow(SPAWN_AHEAD);
-      G.nextSpawnZ -= SEG_GAP;
-    }
+    while (G.nextSpawnZ > SPAWN_AHEAD + SEG_GAP) { spawnRow(SPAWN_AHEAD); G.nextSpawnZ -= SEG_GAP; }
 
     updateHUD();
   }
 
   function render() {
-    // gentle sun pulse
     sunGlow.material.opacity = 0.3 + Math.sin(clock.elapsedTime*1.5)*0.06;
+    sunDisk.rotation.z += 0.0005;
+    // camera shake
+    if (G.shake > 0) {
+      G.shake = Math.max(0, G.shake - clock.getDelta()*0 - 0.016);
+      camera.position.set(CAM_BASE.x + (Math.random()-0.5)*G.shake*1.5, CAM_BASE.y + (Math.random()-0.5)*G.shake*1.5, CAM_BASE.z);
+    } else if (state===State.PLAY || state===State.OVER) {
+      camera.position.lerp(CAM_BASE, 0.2);
+    }
     renderer.render(scene, camera);
   }
 
@@ -949,7 +1697,6 @@
     render();
   }
 
-  // ---- resize ----
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -957,12 +1704,13 @@
   });
 
   // ---- boot ----
-  // pre-spawn a few rows so the world isn't empty on start
+  buildPlayer(save.selected); playerParts._charId = save.selected;
   resetGame();
-  for (let z = -20; z > SPAWN_AHEAD; z -= SEG_GAP) {
-    // no spawns before game starts; keep menu clean
-  }
-  el('best-score') && (el('best-score').textContent = best);
+  el('best-score') && (el('best-score').textContent = save.best);
+  // mark already-completed achievements as notified so we only toast new ones
+  ACHIEVEMENTS.forEach(a=>{ if(a.stat()>=a.goal) a._notified = true; });
+  refreshHome();
+  show('home');
   document.getElementById('loader').style.display = 'none';
   loop();
   </script>
