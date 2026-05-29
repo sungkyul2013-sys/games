@@ -25,6 +25,8 @@
     touch-action: none;
   }
   #game-canvas { position: fixed; inset: 0; display: block; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background: radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(8,4,18,.32) 88%, rgba(6,3,14,.55) 100%); }
 
   /* ---------- scrollbars ---------- */
   ::-webkit-scrollbar { width: 8px; }
@@ -71,6 +73,21 @@
   #combo.show { transform: translateX(-50%) scale(1); }
   #combo .x { font-size: 30px; font-weight: 900; color: var(--gold); text-shadow: 0 2px 14px rgba(255,180,80,.6); }
   #combo .t { font-size: 11px; letter-spacing: 3px; opacity: .8; text-transform: uppercase; }
+
+  /* ---------- Level / checkpoint banner ---------- */
+  #banner {
+    position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%) scale(.6);
+    z-index: 12; pointer-events: none; text-align: center; opacity: 0;
+    transition: opacity .3s ease, transform .3s cubic-bezier(.2,1.6,.4,1);
+  }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #banner .b-main {
+    font-size: clamp(34px, 9vw, 64px); font-weight: 900; letter-spacing: 2px; line-height: 1;
+    background: linear-gradient(100deg,#fff1c9,var(--gold),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter: drop-shadow(0 6px 26px rgba(255,180,120,.5));
+  }
+  #banner .b-sub { font-size: 15px; letter-spacing: 5px; text-transform: uppercase; opacity:.9; margin-top: 8px; }
 
   /* ---------- Powerup banner ---------- */
   #powerup-bar {
@@ -344,6 +361,7 @@
 </head>
 <body>
   <canvas id="game-canvas"></canvas>
+  <div id="vignette"></div>
 
   <!-- HUD -->
   <div id="hud">
@@ -351,6 +369,10 @@
       <div class="hud-pill">
         <div class="label">Score</div>
         <div class="value" id="hud-score">0</div>
+      </div>
+      <div class="hud-pill" style="min-width:64px">
+        <div class="label">Level</div>
+        <div class="value" id="hud-level" style="color:var(--accent3)">1</div>
       </div>
     </div>
     <div id="hud-right">
@@ -362,6 +384,7 @@
     </div>
   </div>
   <div id="combo"><div class="x" id="combo-x">x2</div><div class="t">Coin Combo</div></div>
+  <div id="banner"><div class="b-main" id="banner-main"></div><div class="b-sub" id="banner-sub"></div></div>
   <div id="powerup-bar"></div>
   <div class="flash" id="flash"></div>
   <div id="toast-wrap"></div>
@@ -396,6 +419,7 @@
       <div id="char-name-tag">
         <div class="role" id="home-best">BEST 0</div>
         <div class="nm" id="home-char">러너</div>
+        <div class="role" id="home-ability" style="margin-top:5px;color:var(--accent);letter-spacing:0;text-transform:none;font-size:12px;">능력</div>
       </div>
     </div>
 
@@ -498,6 +522,18 @@
   const DESPAWN_Z = 14;
   const TILE_LEN = 30;
   const SEG_GAP = 9;
+  const LEVEL_DIST = 450;       // distance per level
+  const CHECKPOINT_DIST = 900;  // distance per checkpoint
+
+  // Biomes cycle as you level up — sky / fog / sun colours shift smoothly
+  const BIOMES = [
+    { name:'석양', top:0x241a5e, mid:0xff7eb3, bottom:0xffd36b, fog:0xff9966, sun:0xffe9a8 },
+    { name:'황혼', top:0x1a1040, mid:0x8a4ba3, bottom:0xff9a6b, fog:0xa9628f, sun:0xffd0a0 },
+    { name:'야간', top:0x05061f, mid:0x232a6a, bottom:0x4a3a7a, fog:0x232450, sun:0xcfd8ff },
+    { name:'새벽', top:0x102a4a, mid:0x5a8ad0, bottom:0xffd0a0, fog:0x7f9fc4, sun:0xfff0c0 },
+    { name:'창공', top:0x1f5fd0, mid:0x7ab8ff, bottom:0xd6f0ff, fog:0x9fc4ea, sun:0xffffff },
+    { name:'오로라', top:0x041028, mid:0x119a8a, bottom:0x3a2a7a, fog:0x10403a, sun:0x9affe0 },
+  ];
 
   // ===================================================================
   //  PERSISTENT SAVE DATA
@@ -536,21 +572,31 @@
   //  CONTENT DATA — characters, upgrades, achievements, daily
   // ===================================================================
   const CHARACTERS = [
-    { id:'runner',  name:'러너',        role:'기본',     emoji:'🏃', price:0,
+    { id:'runner',  name:'러너',        role:'기본',     emoji:'🏃', price:0,    ability:'균형 잡힌 올라운더',
       colors:{ skin:0xffd0a8, shirt:0xff5e8a, pants:0x3a4a8a, shoe:0xfff2d0, hat:0xffd86b }, trail:0xff7eb3 },
-    { id:'aqua',    name:'아쿠아',      role:'서퍼',     emoji:'🌊', price:300,
+    { id:'aqua',    name:'아쿠아',      role:'서퍼',     emoji:'🌊', price:300,  ability:'🧲 자석 지속 +50%',
       colors:{ skin:0xf2c9a0, shirt:0x33c7e0, pants:0x1f5f8a, shoe:0xd0fbff, hat:0x66e0ff }, trail:0x55ddff },
-    { id:'ninja',   name:'섀도우 닌자', role:'민첩',     emoji:'🥷', price:600,
+    { id:'ninja',   name:'섀도우 닌자', role:'민첩',     emoji:'🥷', price:600,  ability:'⚡ 초고속 레인 이동 + 피격 무적 +1초',
       colors:{ skin:0x2a2a3a, shirt:0x222233, pants:0x14141e, shoe:0x44445a, hat:0xcc2244 }, trail:0x7a5cff },
-    { id:'neon',    name:'네온 라이더', role:'사이버',   emoji:'🤖', price:900,
+    { id:'neon',    name:'네온 라이더', role:'사이버',   emoji:'🤖', price:900,  ability:'✨ 점수 상시 +25%',
       colors:{ skin:0xcfd8ff, shirt:0x00ffd0, pants:0x2a1066, shoe:0xff00aa, hat:0x00ffd0 }, trail:0x00ffd0, glow:true },
-    { id:'astro',   name:'우주인',      role:'탐험가',   emoji:'🧑‍🚀', price:1400,
+    { id:'astro',   name:'우주인',      role:'탐험가',   emoji:'🧑‍🚀', price:1400, ability:'🌙 저중력 — 더 높고 길게 점프',
       colors:{ skin:0xeef2ff, shirt:0xf0f4ff, pants:0xdde4f5, shoe:0xff7a3a, hat:0x88a0ff }, trail:0x99ccff },
-    { id:'phoenix', name:'피닉스',      role:'전설',     emoji:'🔥', price:2500,
+    { id:'phoenix', name:'피닉스',      role:'전설',     emoji:'🔥', price:2500, ability:'💖 1회 부활 — 충돌해도 한 번 살아남음',
       colors:{ skin:0xffe0b0, shirt:0xff5a1f, pants:0x8a1a00, shoe:0xffd000, hat:0xff8800 }, trail:0xff5500, glow:true },
-    { id:'golden',  name:'골든 스타',   role:'프리미엄', emoji:'👑', price:5000,
+    { id:'golden',  name:'골든 스타',   role:'프리미엄', emoji:'👑', price:5000, ability:'💰 모든 코인 2배',
       colors:{ skin:0xfff0c0, shirt:0xffd000, pants:0xb8860b, shoe:0xfff7d0, hat:0xffe24a }, trail:0xffd000, glow:true },
   ];
+  function abilities(id){
+    const ab = { magnetMult:1, laneSpeed:16, invulnBonus:0, scoreMult:1, gravMult:1, jumpMult:1, coinMult:1, revive:0 };
+    if(id==='aqua')   ab.magnetMult=1.5;
+    if(id==='ninja'){ ab.laneSpeed=26; ab.invulnBonus=1; }
+    if(id==='neon')   ab.scoreMult=1.25;
+    if(id==='astro'){ ab.gravMult=0.72; ab.jumpMult=1.14; }
+    if(id==='phoenix')ab.revive=1;
+    if(id==='golden') ab.coinMult=2;
+    return ab;
+  }
   const charById = (id)=>CHARACTERS.find(c=>c.id===id)||CHARACTERS[0];
 
   // upgrades: each level scales effect; cost grows
@@ -1040,7 +1086,30 @@
     hover: false, invuln: 0, shields: 0,
     combo: 0, comboT: 0,
     shake: 0,
+    level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
+    lean: 0, biome: 0, reviveLeft: 0,
+    ab: abilities('runner'),
   };
+  // biome colour interpolation targets (current shown values are in skyMat uniforms)
+  const biomeTarget = {
+    top: new THREE.Color(BIOMES[0].top), mid: new THREE.Color(BIOMES[0].mid),
+    bottom: new THREE.Color(BIOMES[0].bottom), fog: new THREE.Color(BIOMES[0].fog), sun: new THREE.Color(BIOMES[0].sun),
+  };
+  function setBiome(i){
+    const b = BIOMES[i % BIOMES.length];
+    biomeTarget.top.set(b.top); biomeTarget.mid.set(b.mid); biomeTarget.bottom.set(b.bottom);
+    biomeTarget.fog.set(b.fog); biomeTarget.sun.set(b.sun);
+    return b;
+  }
+  function snapBiome(i){
+    setBiome(i);
+    skyMat.uniforms.top.value.copy(biomeTarget.top);
+    skyMat.uniforms.mid.value.copy(biomeTarget.mid);
+    skyMat.uniforms.bottom.value.copy(biomeTarget.bottom);
+    scene.fog.color.copy(biomeTarget.fog);
+    sun.color.copy(biomeTarget.sun);
+    sunDisk.material.color.copy(biomeTarget.sun);
+  }
 
   function resetGame() {
     hideAll();
@@ -1051,7 +1120,11 @@
       sliding: false, slideT: 0, runT: 0, nextSpawnZ: SPAWN_AHEAD,
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
       shields: u.shield, combo: 0, comboT: 0, shake: 0,
+      level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
+      lean: 0, biome: 0,
     });
+    G.ab = abilities(save.selected);
+    G.reviveLeft = G.ab.revive;
     player.position.set(0, 0, PLAYER_Z);
     player.rotation.set(0,0,0);
     if(playerParts){ playerParts.board.visible=false; playerParts.aura.visible=false; playerParts.shieldMesh.visible = G.shields>0; }
@@ -1060,7 +1133,13 @@
       G.speed = Math.min(MAX_SPEED, BASE_SPEED + u.headstart*5);
       G.distance = u.headstart*120;
       G.score = G.distance*0.6;
+      // advance level/checkpoint markers past the skipped distance
+      while (G.distance >= G.nextLevelDist) { G.level++; G.nextLevelDist += LEVEL_DIST; }
+      while (G.distance >= G.nextCheckpoint) { G.nextCheckpoint += CHECKPOINT_DIST; }
+      G.biome = (G.level-1) % BIOMES.length;
     }
+    snapBiome(G.biome);
+    el('hud-level').textContent = G.level;
     updateHUD();
     updatePowerupBar();
     updateComboUI();
@@ -1069,36 +1148,62 @@
   // ===================================================================
   //  Spawning
   // ===================================================================
+  const shuffle = (a)=>{ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; } return a; };
+  const rnd3 = ()=> (Math.random()*3)|0;
+
+  // Guarantees: trains never block all 3 lanes; every row leaves at least one
+  // survivable lane reachable with a single action. Difficulty scales with level.
   function spawnRow(z) {
+    const diff = Math.min(1, (G.level-1)/9);   // 0 → 1 across ~10 levels
     const r = Math.random();
-    if (r < 0.12) { spawnCoinRow(z, (Math.random()*3)|0); return; }
-    if (r < 0.32) {
-      const block = (Math.random()*3)|0;
-      const o = getObstacle('train');
-      o.position.set(LANES[block], o.userData.y, z - 3);
-      const free = [0,1,2].filter(l => l !== block);
-      spawnCoinRow(z, free[(Math.random()*free.length)|0]);
-    } else if (r < 0.6) {
-      const count = 1 + ((Math.random()*2)|0);
-      const lanesShuffled = [0,1,2].sort(()=>Math.random()-0.5);
-      for (let i=0;i<count;i++){
-        const type = Math.random() > 0.5 ? 'low' : 'high';
-        const o = getObstacle(type);
-        o.position.set(LANES[lanesShuffled[i]], o.userData.y, z);
-      }
-      const freeLane = lanesShuffled[count] !== undefined ? lanesShuffled[count] : lanesShuffled[0];
-      if (Math.random() > 0.5) spawnCoinArc(z, lanesShuffled[0]);
-      else spawnCoinRow(z, freeLane);
+
+    // breathing-room coin rows (rarer at high level)
+    if (r < 0.14 - diff*0.07) { spawnCoinRow(z, rnd3()); maybePowerup(z, [0,1,2]); return; }
+
+    const occ = {};   // lane -> 'train' | 'low' | 'high'
+    const lanes = [0,1,2];
+
+    if (Math.random() < 0.16 + diff*0.18) {
+      // FULL-WIDTH GATE: a barrier on every lane, but each is single-action → always passable
+      lanes.forEach(l => { occ[l] = Math.random() < 0.5 ? 'low' : 'high'; });
     } else {
-      const lane = (Math.random()*3)|0;
-      spawnCoinRow(z, lane);
-      if (Math.random() < 0.22) {
-        const type = PW_TYPES[(Math.random()*PW_TYPES.length)|0];
-        const p = getPowerup(type);
-        const pl = (Math.random()*3)|0;
-        p.position.set(LANES[pl], 1.2, z - 4);
+      // 1–2 hazards on random lanes; high level leans toward 2
+      const hazardCount = 1 + (Math.random() < (0.35 + diff*0.45) ? 1 : 0);
+      const order = shuffle(lanes.slice());
+      for (let i=0;i<hazardCount;i++){
+        const t = Math.random();
+        occ[order[i]] = t < 0.42 ? 'train' : (t < 0.71 ? 'low' : 'high');
       }
+      // guarantee at least one completely free lane in this mode
+      if (lanes.every(l => occ[l] !== undefined)) delete occ[order[0]];
     }
+
+    // SAFETY: never let trains block all three lanes
+    const trainLanes = lanes.filter(l => occ[l] === 'train');
+    if (trainLanes.length >= 3) occ[1] = 'low';
+
+    // place obstacles
+    lanes.forEach(l => {
+      if (occ[l]) {
+        const o = getObstacle(occ[l]);
+        o.position.set(LANES[l], o.userData.y, occ[l] === 'train' ? z - 3 : z);
+      }
+    });
+
+    // coins on a non-train lane (arc over jump barriers)
+    const passable = lanes.filter(l => occ[l] !== 'train');
+    const coinLane = passable[(Math.random()*passable.length)|0];
+    if (occ[coinLane] === 'low') spawnCoinArc(z, coinLane);
+    else spawnCoinRow(z, coinLane);
+
+    // powerups appear on a fully free lane
+    maybePowerup(z, lanes.filter(l => !occ[l]));
+  }
+  function maybePowerup(z, freeLanes){
+    if (!freeLanes.length || Math.random() >= 0.17) return;
+    const type = PW_TYPES[(Math.random()*PW_TYPES.length)|0];
+    const p = getPowerup(type);
+    p.position.set(LANES[freeLanes[(Math.random()*freeLanes.length)|0]], 1.2, z - 5);
   }
   function spawnCoinRow(z, lane) {
     for (let i=0;i<5;i++){ const c = getCoin(); c.position.set(LANES[lane], 1.0, z - i*1.6); }
@@ -1122,16 +1227,17 @@
   }
   function jump() {
     if (state !== State.PLAY) return;
-    if (!G.jumping && !G.sliding) {
+    if (G.sliding) { G.sliding = false; G.slideT = 0; }   // cancel slide instantly
+    if (!G.jumping) {
       G.jumping = true;
-      G.vy = G.powerups.boots > 0 ? JUMP_V * 1.5 : JUMP_V;
+      G.vy = (G.powerups.boots > 0 ? JUMP_V * 1.5 : JUMP_V) * G.ab.jumpMult;
       sfx('jump');
     }
   }
   function slide() {
     if (state !== State.PLAY) return;
-    if (!G.sliding && !G.jumping) { G.sliding = true; G.slideT = SLIDE_TIME; sfx('slide'); }
-    else if (G.jumping) { G.vy = Math.min(G.vy, -6); }
+    if (G.jumping) { G.vy = Math.min(G.vy, -24); }         // fast-fall to ground
+    if (!G.sliding) { G.sliding = true; G.slideT = SLIDE_TIME; sfx('slide'); }
   }
 
   window.addEventListener('keydown', (e) => {
@@ -1145,19 +1251,33 @@
     }
   });
 
-  let touchStart = null;
+  // Responsive swipe: fire the instant a swipe threshold is crossed (during the
+  // move, not on release) and re-arm so several flicks register back-to-back.
+  let touchStart = null, didSwipe = false;
+  const SWIPE_MIN = 18;
   canvas.addEventListener('touchstart', (e) => {
-    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    didSwipe = false;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (!touchStart) return;
+    const dx = e.touches[0].clientX - touchStart.x;
+    const dy = e.touches[0].clientY - touchStart.y;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
+    if (adx > ady) moveLane(dx > 0 ? 1 : -1);
+    else if (dy > 0) slide(); else jump();
+    didSwipe = true;
+    // re-anchor so a continued drag can trigger the next action
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
-    if (!touchStart) return;
-    const dx = e.changedTouches[0].clientX - touchStart.x;
-    const dy = e.changedTouches[0].clientY - touchStart.y;
-    const adx = Math.abs(dx), ady = Math.abs(dy);
-    if (adx < 24 && ady < 24) { jump(); touchStart=null; return; }
-    if (adx > ady) { moveLane(dx > 0 ? 1 : -1); }
-    else { if (dy > 0) slide(); else jump(); }
-    touchStart = null;
+    if (touchStart && !didSwipe) {
+      const dx = e.changedTouches[0].clientX - touchStart.x;
+      const dy = e.changedTouches[0].clientY - touchStart.y;
+      if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) jump(); // tap = jump
+    }
+    touchStart = null; didSwipe = false;
   }, { passive: true });
 
   // ===================================================================
@@ -1208,7 +1328,7 @@
   // ===================================================================
   function pwDur(type){
     const u = save.upgrades;
-    if (type==='magnet') return 7 + u.magnet*1.5;
+    if (type==='magnet') return (7 + u.magnet*1.5) * G.ab.magnetMult;
     if (type==='boots')  return 7 + u.boots*1.5;
     if (type==='x2')     return 9 + u.x2*2;
     return 0;
@@ -1239,6 +1359,42 @@
     else el.classList.remove('show');
   }
   function comboMult(){ return G.combo>=20?3 : G.combo>=10?2 : 1; }
+
+  // ---- banner / level / checkpoint / revive ----
+  let bannerTimer = null;
+  function showBanner(main, sub){
+    document.getElementById('banner-main').textContent = main;
+    document.getElementById('banner-sub').textContent = sub || '';
+    const b = document.getElementById('banner');
+    b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(()=>b.classList.remove('show'), 1600);
+  }
+  function onLevelUp(){
+    G.level++;
+    document.getElementById('hud-level').textContent = G.level;
+    G.speed = Math.min(MAX_SPEED + G.level*1.6, G.speed + 2.5);   // snap a little faster
+    const newBiome = (G.level-1) % BIOMES.length;
+    if (newBiome !== G.biome){ G.biome = newBiome; const b = setBiome(newBiome); showBanner('LEVEL '+G.level, b.name+' 진입'); }
+    else showBanner('LEVEL '+G.level, '속도 상승');
+    sfx('power'); flash();
+  }
+  function onCheckpoint(){
+    const bonus = 25 + G.level*5;
+    G.coins += bonus;
+    G.invuln = Math.max(G.invuln, 1.2);
+    showBanner('CHECKPOINT ✓', '+'+bonus+' 코인');
+    burst(player.position.x, 1.4, PLAYER_Z, 0xffd86b, 18);
+    sfx('reward');
+  }
+  function reviveRun(){
+    G.reviveLeft--;
+    for (const o of obstacles){ if (o.visible && o.position.z > -42) o.visible = false; }  // clear nearby hazards
+    G.invuln = 2.4; G.y = 0; G.vy = 0; G.jumping = false; G.sliding = false;
+    flash(); burst(player.position.x, 1.4, PLAYER_Z, 0xff5500, 26);
+    showBanner('🔥 부활!', '한 번 더');
+    sfx('reward'); G.shake = 0.4;
+  }
 
   // ===================================================================
   //  HUD / overlays / toasts
@@ -1346,6 +1502,7 @@
     el('wallet-mile').textContent = save.mileage.toLocaleString();
     el('home-best').textContent = 'BEST ' + save.best.toLocaleString();
     el('home-char').textContent = charById(save.selected).name;
+    el('home-ability').textContent = charById(save.selected).ability;
     el('settings-btn').querySelector('.ic').textContent = save.muted ? '🔇' : '🔊';
     updateBadges();
   }
@@ -1393,7 +1550,7 @@
       else actHtml = `<div class="price">🪙 ${c.price.toLocaleString()}</div><button class="mini-btn" data-buy="${c.id}" ${save.wallet<c.price?'disabled':''}>구매</button>`;
       card.innerHTML = `
         <div class="swatch" style="background:${grad}">${c.emoji}</div>
-        <div class="info"><div class="nm">${c.name}</div><div class="ds">${c.role} 캐릭터</div></div>
+        <div class="info"><div class="nm">${c.name} <span style="font-size:11px;opacity:.6;font-weight:normal;">· ${c.role}</span></div><div class="ds" style="color:var(--accent);opacity:.95;">${c.ability}</div></div>
         <div class="act">${actHtml}</div>`;
       body.appendChild(card);
     });
@@ -1569,16 +1726,25 @@
     }
     if (state !== State.PLAY) return;
 
-    G.speed = Math.min(MAX_SPEED, G.speed + SPEED_RAMP * dt);
+    const effMax = MAX_SPEED + G.level * 1.6;          // faster every level
+    G.speed = Math.min(effMax, G.speed + SPEED_RAMP * dt);
     const move = G.speed * dt;
     G.distance += move;
-    G.score += move * (G.powerups.x2 > 0 ? 2 : 1) * 0.6;
+    G.score += move * (G.powerups.x2 > 0 ? 2 : 1) * 0.6 * G.ab.scoreMult;
+
+    // level up + checkpoint progression
+    if (G.distance >= G.nextLevelDist) { G.nextLevelDist += LEVEL_DIST; onLevelUp(); }
+    if (G.distance >= G.nextCheckpoint) { G.nextCheckpoint += CHECKPOINT_DIST; onCheckpoint(); }
 
     const targetX = LANES[G.lane];
-    G.laneX += (targetX - G.laneX) * Math.min(1, dt * 14);
+    const prevX = G.laneX;
+    G.laneX += (targetX - G.laneX) * Math.min(1, dt * G.ab.laneSpeed);
+    // lean into the turn for juice
+    const dx = G.laneX - prevX;
+    G.lean += ((-dx * 60) - G.lean) * Math.min(1, dt * 10);
 
     if (G.jumping) {
-      G.vy += GRAVITY * dt;
+      G.vy += GRAVITY * G.ab.gravMult * dt;
       G.y += G.vy * dt;
       if (G.y <= 0) { G.y = 0; G.vy = 0; G.jumping = false; }
     }
@@ -1588,6 +1754,16 @@
     player.position.y = G.y + (G.hover ? 0.4 : 0);
     if (G.sliding) { player.rotation.x = -1.15; player.position.y = G.y + 0.1; }
     else { player.rotation.x += (0 - player.rotation.x) * Math.min(1, dt*16); }
+    player.rotation.z = THREE.MathUtils.clamp((targetX - G.laneX) * -0.16, -0.42, 0.42);
+
+    // smoothly drift biome colours toward the current target
+    const bl = Math.min(1, dt * 1.4);
+    skyMat.uniforms.top.value.lerp(biomeTarget.top, bl);
+    skyMat.uniforms.mid.value.lerp(biomeTarget.mid, bl);
+    skyMat.uniforms.bottom.value.lerp(biomeTarget.bottom, bl);
+    scene.fog.color.lerp(biomeTarget.fog, bl);
+    sun.color.lerp(biomeTarget.sun, bl);
+    sunDisk.material.color.lerp(biomeTarget.sun, bl);
 
     G.runT += dt * (8 + G.speed*0.25);
     const swing = Math.sin(G.runT) * (G.jumping ? 0.4 : 1.0);
@@ -1631,8 +1807,9 @@
       o.position.z += move;
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
       if (G.invuln <= 0 && intersect(pBox, o)) {
-        if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
-        else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
+        if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0 + G.ab.invulnBonus; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
+        else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2 + G.ab.invulnBonus; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
+        else if (G.reviveLeft > 0) { reviveRun(); return; }
         else { gameOver(); return; }
       }
     }
@@ -1654,7 +1831,7 @@
         c.visible = false;
         G.combo++; G.comboT = 2.0; updateComboUI();
         const cm = comboMult();
-        const gain = (1 + coinBonus) * cm;
+        const gain = (1 + coinBonus) * cm * G.ab.coinMult;
         G.coins += gain;
         G.score += (G.powerups.x2>0?2:1) * 5 * cm;
         burst(c.position.x, c.position.y, c.position.z, 0xffd86b, 6);
@@ -1680,13 +1857,19 @@
   function render() {
     sunGlow.material.opacity = 0.3 + Math.sin(clock.elapsedTime*1.5)*0.06;
     sunDisk.rotation.z += 0.0005;
-    // camera shake
+    const followX = (state===State.PLAY) ? G.laneX * 0.42 : 0;
+    const baseX = CAM_BASE.x + followX;
     if (G.shake > 0) {
-      G.shake = Math.max(0, G.shake - clock.getDelta()*0 - 0.016);
-      camera.position.set(CAM_BASE.x + (Math.random()-0.5)*G.shake*1.5, CAM_BASE.y + (Math.random()-0.5)*G.shake*1.5, CAM_BASE.z);
-    } else if (state===State.PLAY || state===State.OVER) {
-      camera.position.lerp(CAM_BASE, 0.2);
+      G.shake = Math.max(0, G.shake - 0.016);
+      camera.position.set(baseX + (Math.random()-0.5)*G.shake*1.6, CAM_BASE.y + (Math.random()-0.5)*G.shake*1.6, CAM_BASE.z);
+    } else {
+      camera.position.x += (baseX - camera.position.x) * 0.12;
+      camera.position.y += (CAM_BASE.y - camera.position.y) * 0.2;
+      camera.position.z = CAM_BASE.z;
     }
+    // look slightly toward the runner so the world parallaxes with movement
+    const lookX = (state===State.PLAY) ? G.laneX * 0.18 : 0;
+    camera.lookAt(lookX, 1.6, -14);
     renderer.render(scene, camera);
   }
 
