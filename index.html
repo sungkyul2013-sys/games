@@ -145,7 +145,7 @@
   .btn:active { transform: translateY(1px) scale(.98); }
   .btn.secondary {
     background: var(--glass-soft); color: #fff; border: 1px solid var(--glass-border);
-    box-shadow: none; font-size: 16px; padding: 12px 32px;
+    box-shadow: none; font-size: 16px; padding: 14px 36px; min-width: 180px;
   }
   .btn:disabled { filter: grayscale(.7) brightness(.7); cursor: not-allowed; transform: none; box-shadow: none; }
   .stat-row { display: flex; justify-content: space-around; margin: 6px 0 2px; }
@@ -354,6 +354,9 @@
   #error-box p { opacity:.8; max-width:420px; line-height:1.6; }
 
   .flash { position: fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:15; }
+  /* shield sits above everything; when .on it intercepts every pointer event */
+  #tap-shield { position: fixed; inset: 0; z-index: 999; display: none; background: transparent; }
+  #tap-shield.on { display: block; }
   /* reward popup burst */
   #reward-pop { position: fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition: opacity .3s ease; }
   #reward-pop.show { opacity:1; }
@@ -496,6 +499,8 @@
 <body>
   <canvas id="game-canvas"></canvas>
   <div id="vignette"></div>
+  <!-- transient full-screen shield: swallows ghost/fall-through taps during screen changes -->
+  <div id="tap-shield"></div>
 
   <!-- HUD -->
   <div id="hud">
@@ -646,8 +651,8 @@
     <button class="btn secondary" id="home-from-over">홈으로</button>
   </div>
 
-  <!-- Challenge intro -->
-  <div class="overlay hidden" id="challenge-intro">
+  <!-- Challenge intro (sits above the home screen, fully opaque) -->
+  <div class="overlay hidden" id="challenge-intro" style="z-index:32; background:radial-gradient(circle at 50% 22%, #3a1f60, #0c0718)">
     <div class="title" style="font-size:clamp(30px,8vw,56px)">🏆 챌린지 모드</div>
     <div class="panel" style="text-align:left; max-width:340px">
       <div style="font-size:15px; line-height:2.0;">
@@ -1195,6 +1200,13 @@
         win.position.set(w/2,0.3,z); mesh.add(win);
         const win2 = win.clone(); win2.position.x = -w/2; mesh.add(win2);
       }
+      // decorative staircase on the front face
+      const stepMat = new THREE.MeshStandardMaterial({color:0xffe6a8, emissive:0xffaa33, emissiveIntensity:.4, roughness:.6});
+      for(let i=0;i<4;i++){
+        const step = new THREE.Mesh(new THREE.BoxGeometry(w*0.86, 0.34, 0.5), stepMat);
+        step.position.set(0, 0.17 + i*0.34, d/2 + 0.85 - i*0.5);
+        step.castShadow = true; mesh.add(step);
+      }
     } else if (type === 'low') {        // short — JUMP over (arrow hint)
       w = 1.9; h = 0.9; d = 1.1; y = h/2;
       mesh = new THREE.Group();
@@ -1663,18 +1675,25 @@
   function show(id){ el(id).classList.remove('hidden'); }
   function hide(id){ el(id).classList.add('hidden'); }
 
-  // Navigation lock: a single physical tap can otherwise fire on a button and then
-  // "fall through" to whatever button appears under the finger on the next screen
-  // (the classic cause of "홈으로 restarts the game"). After any screen change we
-  // ignore further navigation for a short window so one tap = one transition.
-  let navLock = 0;
-  function navReady(){
-    const now = performance.now();
-    if (now < navLock) return false;
-    navLock = now + 420;
-    return true;
+  // ----- Tap shield -----------------------------------------------------------
+  // Mobile fires a synthetic "click" ~300ms after a touch at the SAME screen
+  // coordinate. If a button there triggers a screen change, that ghost click
+  // lands on whatever button now sits under the finger — the root cause of
+  // "홈으로 restarts the game", "rocket opens the shop", etc. After every screen
+  // transition we raise a transparent full-screen shield that physically
+  // swallows all pointer events for a moment, so exactly one tap = one action.
+  const shield = document.getElementById('tap-shield');
+  let shieldTimer = null;
+  function raiseShield(ms = 500){
+    shield.classList.add('on');
+    clearTimeout(shieldTimer);
+    shieldTimer = setTimeout(()=>shield.classList.remove('on'), ms);
   }
-  function showGuarded(id){ el(id).classList.remove('hidden'); navLock = performance.now() + 420; }
+  ['click','pointerdown','pointerup','touchstart','touchend','mousedown','mouseup'].forEach(ev=>{
+    shield.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); }, { capture:true, passive:false });
+  });
+  // every screen reveal raises the shield
+  function showGuarded(id){ el(id).classList.remove('hidden'); raiseShield(); }
 
   function toast(msg, icon='✨'){
     const w = el('toast-wrap');
@@ -1698,7 +1717,6 @@
   // ===================================================================
   let selectedMode = 'endless';
   function startGame(mode) {
-    if (!navReady()) return;
     const m = (mode === 'endless' || mode === 'challenge') ? mode : selectedMode;
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -1712,21 +1730,21 @@
     closeAllSheets();
     el('hud').classList.add('show');
     updateItemBar();
+    raiseShield();
   }
   function togglePause() {
-    if (!navReady()) return;
     if (state === State.PLAY) { state = State.PAUSE; showGuarded('pause-overlay'); }
-    else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
+    else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); raiseShield(); }
     updateItemBar();
   }
   function goHome() {
-    if (!navReady()) return;
     state = State.HOME;
     hide('pause-overlay'); hide('over-overlay'); hide('challenge-intro');
+    closeAllSheets();
     el('hud').classList.remove('show');
     updateItemBar();
     hideAll();            // clear obstacles/coins so home shows only the character
-    show('home');
+    showGuarded('home');  // shield blocks the ghost tap that used to restart the game
     refreshHome();
   }
   function gameOver() {
@@ -1768,7 +1786,7 @@
     else startGame('endless');
   });
   el('challenge-start').addEventListener('click', ()=>{ hide('challenge-intro'); startGame('challenge'); });
-  el('challenge-back').addEventListener('click', ()=>hide('challenge-intro'));
+  el('challenge-back').addEventListener('click', ()=>{ hide('challenge-intro'); raiseShield(); });
   el('retry-btn').addEventListener('click', ()=>startGame(G.mode));
   document.querySelectorAll('.mode-pick').forEach(p=>p.addEventListener('click', ()=>{
     selectedMode = p.dataset.mode;
@@ -1941,6 +1959,7 @@
     if (id==='bomb') explodeBomb();
     else if (id==='rocket') activatePower('rocket');
     updateItemBar();
+    raiseShield(350);   // swallow the trailing ghost click so it can't hit a menu
   }
   function explodeBomb(){
     let cleared = 0;
