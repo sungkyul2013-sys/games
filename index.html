@@ -438,8 +438,8 @@
 
   /* in-game consumable item buttons */
   #item-bar {
-    position: fixed; left: 16px; bottom: 22px; z-index: 11;
-    display: none; flex-direction: column; gap: 12px;
+    position: fixed; left: 18px; top: 96px; z-index: 11;
+    display: none; flex-direction: column; gap: 10px;
   }
   #item-bar.show { display: flex; }
   .item-btn {
@@ -567,7 +567,7 @@
 
     <div id="mode-row">
       <div class="mode-pick active" data-mode="endless"><span class="mi">♾️</span><span class="ml">무한 모드</span></div>
-      <div class="mode-pick" data-mode="timeattack"><span class="mi">⏱️</span><span class="ml">타임어택</span></div>
+      <div class="mode-pick" data-mode="challenge"><span class="mi">⏱️</span><span class="ml">챌린지</span></div>
     </div>
     <button id="home-play">게임 시작 ▶</button>
 
@@ -639,6 +639,22 @@
     </div>
     <button class="btn" id="retry-btn">다시 도전 ▶</button>
     <button class="btn secondary" id="home-from-over">홈으로</button>
+  </div>
+
+  <!-- Challenge intro -->
+  <div class="overlay hidden" id="challenge-intro">
+    <div class="title" style="font-size:clamp(30px,8vw,56px)">🏆 챌린지 모드</div>
+    <div class="panel" style="text-align:left; max-width:340px">
+      <div style="font-size:15px; line-height:2.0;">
+        ⏱️ <b>60초</b> 안에 최고 점수에 도전!<br>
+        🚩 체크포인트 도달 시 <b>+8초</b><br>
+        ⏰ 시계 아이템 획득 시 <b>+6초</b><br>
+        💥 장애물 충돌 시 <b>−8초</b> <span style="opacity:.7">(계속 진행)</span><br>
+        🪙 코인·콤보로 점수를 극대화하세요!
+      </div>
+    </div>
+    <button class="btn" id="challenge-start">시작 ▶</button>
+    <button class="btn secondary" id="challenge-back">뒤로</button>
   </div>
 
   <!-- Three.js via importmap (loaded in user's browser) -->
@@ -732,46 +748,48 @@
   const CHARACTERS = [
     { id:'runner',  name:'러너',        role:'기본',     emoji:'🏃', price:0,    ability:'균형 잡힌 올라운더',
       colors:{ skin:0xffd0a8, shirt:0xff5e8a, pants:0x3a4a8a, shoe:0xfff2d0, hat:0xffd86b }, trail:0xff7eb3 },
-    { id:'aqua',    name:'아쿠아',      role:'서퍼',     emoji:'🌊', price:300,  ability:'🧲 자석 지속 +50%',
+    { id:'aqua',    name:'아쿠아',      role:'서퍼',     emoji:'🌊', price:600,  ability:'🧲 자석 지속 +50%',
       colors:{ skin:0xf2c9a0, shirt:0x33c7e0, pants:0x1f5f8a, shoe:0xd0fbff, hat:0x66e0ff }, trail:0x55ddff },
-    { id:'ninja',   name:'섀도우 닌자', role:'민첩',     emoji:'🥷', price:600,  ability:'⚡ 초고속 레인 이동 + 피격 무적 +1초',
+    { id:'ninja',   name:'섀도우 닌자', role:'민첩',     emoji:'🥷', price:1500, ability:'⚡ 초고속 레인 이동 + 피격 무적 +1초',
       colors:{ skin:0x2a2a3a, shirt:0x222233, pants:0x14141e, shoe:0x44445a, hat:0xcc2244 }, trail:0x7a5cff },
-    { id:'neon',    name:'네온 라이더', role:'사이버',   emoji:'🤖', price:900,  ability:'✨ 점수 상시 +25%',
+    { id:'neon',    name:'네온 라이더', role:'사이버',   emoji:'🤖', price:3000, ability:'✨ 점수 상시 +25%',
       colors:{ skin:0xcfd8ff, shirt:0x00ffd0, pants:0x2a1066, shoe:0xff00aa, hat:0x00ffd0 }, trail:0x00ffd0, glow:true },
-    { id:'astro',   name:'우주인',      role:'탐험가',   emoji:'🧑‍🚀', price:1400, ability:'🌙 저중력 — 더 높고 길게 점프',
+    { id:'astro',   name:'우주인',      role:'탐험가',   emoji:'🧑‍🚀', price:5000, ability:'🌙 저중력 — 더 높고 길게 점프',
       colors:{ skin:0xeef2ff, shirt:0xf0f4ff, pants:0xdde4f5, shoe:0xff7a3a, hat:0x88a0ff }, trail:0x99ccff },
-    { id:'phoenix', name:'피닉스',      role:'전설',     emoji:'🔥', price:2500, ability:'💖 1회 부활 — 충돌해도 한 번 살아남음',
+    { id:'phoenix', name:'피닉스',      role:'전설',     emoji:'🔥', price:9000, ability:'💖 1회 부활 — 충돌해도 한 번 살아남음',
       colors:{ skin:0xffe0b0, shirt:0xff5a1f, pants:0x8a1a00, shoe:0xffd000, hat:0xff8800 }, trail:0xff5500, glow:true },
-    { id:'golden',  name:'골든 스타',   role:'프리미엄', emoji:'👑', price:5000, ability:'💰 모든 코인 2배',
+    { id:'golden',  name:'골든 스타',   role:'프리미엄', emoji:'👑', price:18000, ability:'💰 모든 코인 2배',
       colors:{ skin:0xfff0c0, shirt:0xffd000, pants:0xb8860b, shoe:0xfff7d0, hat:0xffe24a }, trail:0xffd000, glow:true },
+    { id:'celestial', name:'코스모스', role:'우주의 별', emoji:'🌌', price:0, gem:150, ability:'💎 코인 2배 + 점수 +25% (보석 전용)',
+      colors:{ skin:0xe8e0ff, shirt:0x7a3cff, pants:0x2a1066, shoe:0xff66dd, hat:0x66ffff }, trail:0xaa66ff, glow:true },
   ];
   function abilities(id){
-    const ab = { magnetMult:1, laneSpeed:16, invulnBonus:0, scoreMult:1, gravMult:1, jumpMult:1, coinMult:1, revive:0 };
+    const ab = { magnetMult:1, laneSpeed:20, invulnBonus:0, scoreMult:1, gravMult:1, jumpMult:1, coinMult:1, revive:0 };
     if(id==='aqua')   ab.magnetMult=1.5;
-    if(id==='ninja'){ ab.laneSpeed=26; ab.invulnBonus=1; }
+    if(id==='ninja'){ ab.laneSpeed=30; ab.invulnBonus=1; }
     if(id==='neon')   ab.scoreMult=1.25;
     if(id==='astro'){ ab.gravMult=0.72; ab.jumpMult=1.14; }
     if(id==='phoenix')ab.revive=1;
     if(id==='golden') ab.coinMult=2;
+    if(id==='celestial'){ ab.coinMult=2; ab.scoreMult=1.25; }
     return ab;
   }
   const charById = (id)=>CHARACTERS.find(c=>c.id===id)||CHARACTERS[0];
 
   // upgrades: each level scales effect; cost grows
   const UPGRADES = [
-    { id:'magnet',    name:'코인 자석',      emoji:'🧲', max:5, desc:(l)=>`자석 지속 +${l*1.5}초`,           cost:(l)=>120*(l+1) },
-    { id:'boots',     name:'점프 부츠',      emoji:'🚀', max:5, desc:(l)=>`부스트 지속 +${l*1.5}초`,         cost:(l)=>120*(l+1) },
-    { id:'x2',        name:'스코어 x2',      emoji:'✨', max:5, desc:(l)=>`x2 지속 +${l*2}초`,               cost:(l)=>150*(l+1) },
-    { id:'multiplier',name:'코인 가치',      emoji:'💰', max:5, desc:(l)=>`코인당 +${l} 보너스`,            cost:(l)=>200*(l+1) },
-    { id:'headstart', name:'스타트 부스트',  emoji:'⚡', max:3, desc:(l)=>`시작 시 ${l*120}m 가속 출발`,    cost:(l)=>400*(l+1) },
-    { id:'shield',    name:'시작 보호막',    emoji:'🛡️', max:3, desc:(l)=>`시작 시 보호막 ${l}회`,          cost:(l)=>500*(l+1) },
+    { id:'magnet',    name:'코인 자석',      emoji:'🧲', max:5, desc:(l)=>`자석 지속 +${l*1.5}초`,           cost:(l)=>250*(l+1) },
+    { id:'boots',     name:'점프 부츠',      emoji:'🥾', max:5, desc:(l)=>`부스트 지속 +${l*1.5}초`,         cost:(l)=>250*(l+1) },
+    { id:'x2',        name:'스코어 x2',      emoji:'✨', max:5, desc:(l)=>`x2 지속 +${l*2}초`,               cost:(l)=>320*(l+1) },
+    { id:'multiplier',name:'코인 가치',      emoji:'💰', max:5, desc:(l)=>`코인당 +${l} 보너스`,            cost:(l)=>450*(l+1) },
+    { id:'headstart', name:'스타트 부스트',  emoji:'⚡', max:3, desc:(l)=>`시작 시 ${l*120}m 가속 출발`,    cost:(l)=>900*(l+1) },
   ];
   const upById = (id)=>UPGRADES.find(u=>u.id===id);
 
   // consumable items — bought with COINS only, carried into a run and used live
   const CONSUMABLES = [
-    { id:'bomb',   name:'폭탄',  emoji:'💣', price:150, desc:'사용 시 주변 장애물을 폭파하고 잠시 무적이 됩니다' },
-    { id:'rocket', name:'로켓',  emoji:'🚀', price:250, desc:'사용 시 하늘로 날아올라 모든 장애물을 통과합니다' },
+    { id:'bomb',   name:'폭탄',  emoji:'💣', price:600,  desc:'사용 시 주변 장애물을 폭파하고 잠시 무적이 됩니다' },
+    { id:'rocket', name:'로켓',  emoji:'🚀', price:1200, desc:'사용 시 하늘로 날아올라 모든 장애물을 통과합니다' },
   ];
 
   // achievements: stat-based; reward coins
@@ -1154,24 +1172,37 @@
   const coins = [];
   const powerups = [];
 
-  const obMatTrain = new THREE.MeshStandardMaterial({ color: 0xd94f6a, roughness: .5, metalness:.2 });
-  const obMatLow = new THREE.MeshStandardMaterial({ color: 0xffa14a, roughness: .6 });
-  const obMatHigh = new THREE.MeshStandardMaterial({ color: 0x7a5cff, roughness: .5 });
+  const obMatTrain = new THREE.MeshStandardMaterial({ color: 0xff3b5c, roughness: .45, metalness:.2, emissive: 0xff1133, emissiveIntensity:.35 });
+  const obMatLow = new THREE.MeshStandardMaterial({ color: 0xffb13a, roughness: .5, emissive: 0xff7a00, emissiveIntensity:.4 });
+  const obMatHigh = new THREE.MeshStandardMaterial({ color: 0x8a6cff, roughness: .5, emissive: 0x4422ff, emissiveIntensity:.4 });
 
   function makeObstacle(type) {
-    let mesh, h, w, d, y;
+    let mesh, h, w, d, y, stairs = null;
     if (type === 'train') {
       w = 1.7; h = 2.6; d = 8; y = h/2;
       mesh = new THREE.Group();
       const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatTrain);
       body.castShadow = true; body.receiveShadow = true; mesh.add(body);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(w*1.05,0.3,d), new THREE.MeshStandardMaterial({color:0x9c3550}));
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(w*1.05,0.3,d), new THREE.MeshStandardMaterial({color:0xff5a78, emissive:0xff2244, emissiveIntensity:.35}));
       roof.position.y = h/2; mesh.add(roof);
+      // glowing top deck (where you can run when rideable)
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(w*1.06,0.12,d), new THREE.MeshStandardMaterial({color:0xffe6a8, emissive:0xffaa33, emissiveIntensity:.5, roughness:.5}));
+      deck.position.y = h+0.06; deck.receiveShadow = true; mesh.add(deck);
       for(let z=-d/2+1.2; z<d/2; z+=2){
-        const win = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.8,1.0), new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcc66, emissiveIntensity:.5}));
+        const win = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.8,1.0), new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcc66, emissiveIntensity:.7}));
         win.position.set(w/2,0.3,z); mesh.add(win);
         const win2 = win.clone(); win2.position.x = -w/2; mesh.add(win2);
       }
+      // staircase on the front (+z) face — shown only for rideable trains
+      stairs = new THREE.Group();
+      const stepMat = new THREE.MeshStandardMaterial({color:0xffe6a8, emissive:0xffaa33, emissiveIntensity:.55, roughness:.5});
+      for(let i=0;i<4;i++){
+        const step = new THREE.Mesh(new THREE.BoxGeometry(w, 0.55, 0.7), stepMat);
+        step.position.set(0, 0.28 + i*0.6, d/2 + 1.0 - i*0.62);
+        step.castShadow = true; stairs.add(step);
+      }
+      stairs.visible = false;
+      mesh.add(stairs);
     } else if (type === 'low') {
       w = 1.8; h = 0.9; d = 1.0; y = h/2;
       mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatLow);
@@ -1182,11 +1213,11 @@
       const bar = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatHigh);
       bar.castShadow = true; mesh.add(bar);
       for(let s=-1;s<=1;s+=2){
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18,2.6,0.18), new THREE.MeshStandardMaterial({color:0x4a35aa}));
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18,2.6,0.18), new THREE.MeshStandardMaterial({color:0x4a35aa, emissive:0x2a1a88, emissiveIntensity:.3}));
         leg.position.set(s*(w/2-0.15), -1.7, 0); mesh.add(leg);
       }
     }
-    mesh.userData = { type, w, h, d, y, half: {x:w/2, y:h/2, z:d/2} };
+    mesh.userData = { type, w, h, d, y, half: {x:w/2, y:h/2, z:d/2}, topY: y + h/2, stairs, rideable:false, moving:false, mbase:0, mphase:0, mspeed:0, mamp:2.2 };
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
@@ -1194,6 +1225,8 @@
   function getObstacle(type) {
     let o = obstacles.find(m => !m.visible && m.userData.type === type);
     if (!o) { o = makeObstacle(type); obstacles.push(o); }
+    o.userData.rideable = false; o.userData.moving = false;
+    if (o.userData.stairs) o.userData.stairs.visible = false;
     o.visible = true;
     return o;
   }
@@ -1214,9 +1247,9 @@
     return c;
   }
 
-  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield', 'rocket', 'rocket'];
-  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc, rocket: 0xff5533 };
-  const PW_ICONS = { magnet:'🧲', boots:'🥾', x2:'✨', hover:'🛹', shield:'🛡️', rocket:'🚀' };
+  const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield', 'time'];
+  const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc, rocket: 0xff5533, time: 0xffe24a };
+  const PW_ICONS = { magnet:'🧲', boots:'🥾', x2:'✨', hover:'🛹', shield:'🛡️', rocket:'🚀', time:'⏰' };
   const iconTexCache = {};
   function iconTexture(emoji){
     if (iconTexCache[emoji]) return iconTexCache[emoji];
@@ -1238,8 +1271,8 @@
       box.castShadow = true;
       p.add(box);
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false, depthTest:false, fog:false }));
-      sprite.scale.set(1.2, 1.2, 1.2);
-      sprite.position.y = 1.15;
+      sprite.scale.set(1.7, 1.7, 1.7);
+      sprite.position.y = 1.3;
       p.add(sprite);
       p.userData = { half: {x:0.6,y:0.6,z:0.6}, core: box, sprite };
       scene.add(p);
@@ -1277,12 +1310,12 @@
     shake: 0,
     level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
     lean: 0, biome: 0, reviveLeft: 0,
-    rocket: 0, flyY: 0, lastPwDist: 0,
+    rocket: 0, flyY: 0, lastPwDist: 0, groundY: 0,
     mode: 'endless', timeLeft: 0,
     ab: abilities('runner'),
   };
   const ROCKET_DUR = 5.0;   // seconds of rocket flight
-  const TIME_ATTACK_SECONDS = 75;
+  const TIME_ATTACK_SECONDS = 60;
   // biome colour interpolation targets (current shown values are in skyMat uniforms)
   const biomeTarget = {
     top: new THREE.Color(BIOMES[0].top), mid: new THREE.Color(BIOMES[0].mid),
@@ -1312,11 +1345,11 @@
       lane: 1, laneX: 0, y: 0, vy: 0, jumping: false,
       sliding: false, slideT: 0, runT: 0, nextSpawnZ: SPAWN_AHEAD,
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
-      shields: u.shield, combo: 0, comboT: 0, shake: 0,
+      shields: 0, combo: 0, comboT: 0, shake: 0,
       level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
-      lean: 0, biome: 0, rocket: 0, flyY: 0, lastPwDist: 0,
+      lean: 0, biome: 0, rocket: 0, flyY: 0, lastPwDist: 0, groundY: 0,
       mode: mode || 'endless',
-      timeLeft: mode === 'timeattack' ? TIME_ATTACK_SECONDS : 0,
+      timeLeft: mode === 'challenge' ? TIME_ATTACK_SECONDS : 0,
     });
     G.ab = abilities(save.selected);
     G.reviveLeft = G.ab.revive;
@@ -1368,9 +1401,10 @@
       // 1–2 hazards on random lanes; double hazards mostly at higher levels
       const hazardCount = 1 + (Math.random() < (0.10 + diff*0.38) ? 1 : 0);
       const order = shuffle(lanes.slice());
+      const trainChance = 0.12 + diff*0.30;   // few red trains early, more later
       for (let i=0;i<hazardCount;i++){
         const t = Math.random();
-        occ[order[i]] = t < 0.42 ? 'train' : (t < 0.71 ? 'low' : 'high');
+        occ[order[i]] = t < trainChance ? 'train' : (t < trainChance + 0.45 ? 'low' : 'high');
       }
       // guarantee at least one completely free lane in this mode
       if (lanes.every(l => occ[l] !== undefined)) delete occ[order[0]];
@@ -1380,11 +1414,24 @@
     const trainLanes = lanes.filter(l => occ[l] === 'train');
     if (trainLanes.length >= 3) occ[1] = 'low';
 
-    // place obstacles
+    // place obstacles (rideable trains get stairs; lone barriers may slide later on)
+    const occCount = lanes.filter(l => occ[l]).length;
     lanes.forEach(l => {
-      if (occ[l]) {
-        const o = getObstacle(occ[l]);
-        o.position.set(LANES[l], o.userData.y, occ[l] === 'train' ? z - 3 : z);
+      if (!occ[l]) return;
+      const o = getObstacle(occ[l]);
+      if (occ[l] === 'train') {
+        o.position.set(LANES[l], o.userData.y, z - 3);
+        if (Math.random() < 0.35 + diff*0.40) {
+          o.userData.rideable = true;
+          if (o.userData.stairs) o.userData.stairs.visible = true;
+          spawnCoinRoof(z, l, o.userData.topY + 0.7);
+        }
+      } else {
+        o.position.set(LANES[l], o.userData.y, z);
+        if (occCount === 1 && G.level >= 4 && Math.random() < 0.25 + diff*0.25) {
+          o.userData.moving = true; o.userData.mbase = 0; o.userData.mphase = Math.random()*Math.PI*2;
+          o.userData.mspeed = 0.7 + Math.random()*0.5; o.userData.mamp = 2.2;
+        }
       }
     });
 
@@ -1409,6 +1456,9 @@
   }
   function spawnCoinRow(z, lane) {
     for (let i=0;i<5;i++){ const c = getCoin(); c.position.set(LANES[lane], 1.0, z - i*1.6); }
+  }
+  function spawnCoinRoof(z, lane, y) {
+    for (let i=0;i<4;i++){ const c = getCoin(); c.position.set(LANES[lane], y, z - 1 - i*1.6); }
   }
   function spawnCoinArc(z, lane) {
     for (let i=0;i<6;i++){
@@ -1443,20 +1493,20 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    // Computer: arrow keys only (+ Esc/P to pause)
     switch (e.key) {
-      case 'ArrowLeft': case 'a': case 'A': moveLane(-1); break;
-      case 'ArrowRight': case 'd': case 'D': moveLane(1); break;
-      case 'ArrowUp': case 'w': case 'W': jump(); break;
-      case 'ArrowDown': case 's': case 'S': slide(); break;
+      case 'ArrowLeft': moveLane(-1); break;
+      case 'ArrowRight': moveLane(1); break;
+      case 'ArrowUp': jump(); break;
+      case 'ArrowDown': slide(); break;
       case 'p': case 'P': case 'Escape': if(state===State.PLAY||state===State.PAUSE) togglePause(); break;
-      case ' ': if (state === State.OVER) startGame(); break;
     }
   });
 
   // Responsive but controlled swipe: ONE action per touch gesture. Lift and
   // swipe again for the next move — prevents a single drag firing repeatedly.
   let touchStart = null, didSwipe = false;
-  const SWIPE_MIN = 30;
+  const SWIPE_MIN = 22;
   canvas.addEventListener('touchstart', (e) => {
     touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     didSwipe = false;
@@ -1467,9 +1517,16 @@
     const dy = e.touches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
     if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
-    // diagonal-friendly: each axis fires independently
-    if (adx >= SWIPE_MIN) moveLane(dx > 0 ? 1 : -1);
-    if (ady >= SWIPE_MIN) { if (dy > 0) slide(); else jump(); }
+    // generous angle tolerance: a swipe doesn't need to be perfectly aligned.
+    // dominant axis always fires; the other also fires if it's at least 55% as big
+    // (so diagonal swipes do both, and slightly-off swipes still register).
+    if (adx >= ady) {
+      moveLane(dx > 0 ? 1 : -1);
+      if (ady > adx * 0.55 && ady >= SWIPE_MIN) { if (dy > 0) slide(); else jump(); }
+    } else {
+      if (dy > 0) slide(); else jump();
+      if (adx > ady * 0.55 && adx >= SWIPE_MIN) moveLane(dx > 0 ? 1 : -1);
+    }
     didSwipe = true;   // locked until finger lifts
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
@@ -1536,9 +1593,9 @@
   // ===================================================================
   function pwDur(type){
     const u = save.upgrades;
-    if (type==='magnet') return (7 + u.magnet*1.5) * G.ab.magnetMult;
-    if (type==='boots')  return 7 + u.boots*1.5;
-    if (type==='x2')     return 9 + u.x2*2;
+    if (type==='magnet') return (5 + u.magnet*1.2) * G.ab.magnetMult;
+    if (type==='boots')  return 5 + u.boots*1.2;
+    if (type==='x2')     return 6 + u.x2*1.5;
     return 0;
   }
   function activatePower(type) {
@@ -1547,6 +1604,10 @@
     if (type === 'hover') { G.hover = true; playerParts.board.visible = true; }
     else if (type === 'shield') { G.shields++; playerParts.shieldMesh.visible = true; }
     else if (type === 'rocket') { G.rocket = ROCKET_DUR; G.invuln = Math.max(G.invuln, 0.2); showBanner('🚀 로켓!', '하늘로 발사'); }
+    else if (type === 'time') {
+      if (G.mode === 'challenge') { G.timeLeft += 6; el('hud-time').textContent = Math.max(0,Math.ceil(G.timeLeft)); showBanner('+6초', '시간 추가!'); }
+      else { G.score += 200; showBanner('+200', '시간 보너스!'); }
+    }
     else { G.powerups[type] = pwDur(type); if (type === 'magnet') playerParts.aura.visible = true; }
     updatePowerupBar();
   }
@@ -1593,7 +1654,12 @@
     const bonus = 25 + G.level*5;
     G.coins += bonus;
     G.invuln = Math.max(G.invuln, 1.2);
-    showBanner('CHECKPOINT ✓', '+'+bonus+' 코인');
+    if (G.mode === 'challenge') {
+      G.timeLeft += 8; el('hud-time').textContent = Math.max(0, Math.ceil(G.timeLeft));
+      showBanner('CHECKPOINT ✓', '+8초 & +'+bonus+' 코인');
+    } else {
+      showBanner('CHECKPOINT ✓', '+'+bonus+' 코인');
+    }
     burst(player.position.x, 1.4, PLAYER_Z, 0xffd86b, 18);
     sfx('reward');
   }
@@ -1653,16 +1719,16 @@
   // ===================================================================
   let selectedMode = 'endless';
   function startGame(mode) {
-    const m = (mode === 'endless' || mode === 'timeattack') ? mode : selectedMode;
+    const m = (mode === 'endless' || mode === 'challenge') ? mode : selectedMode;
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if (!playerParts || playerParts._charId !== save.selected) { buildPlayer(save.selected); playerParts._charId = save.selected; }
     resetGame(m);
     state = State.PLAY;
-    el('pill-level').style.display = (m === 'timeattack') ? 'none' : '';
-    el('pill-time').style.display  = (m === 'timeattack') ? '' : 'none';
+    el('pill-level').style.display = (m === 'challenge') ? 'none' : '';
+    el('pill-time').style.display  = (m === 'challenge') ? '' : 'none';
     el('hud-time').textContent = Math.ceil(G.timeLeft);
-    hide('home'); hide('over-overlay'); hide('pause-overlay');
+    hide('home'); hide('over-overlay'); hide('pause-overlay'); hide('challenge-intro');
     closeAllSheets();
     el('hud').classList.add('show');
     updateItemBar();
@@ -1674,10 +1740,11 @@
   }
   function goHome() {
     state = State.HOME;
-    hide('pause-overlay'); hide('over-overlay');
+    hide('pause-overlay'); hide('over-overlay'); hide('challenge-intro');
     el('hud').classList.remove('show');
     updateItemBar();
-    show('home');
+    hideAll();            // clear obstacles/coins so home shows only the character
+    showGuarded('home');  // guard so the in-flight tap can't restart the game
     refreshHome();
   }
   function gameOver() {
@@ -1695,17 +1762,17 @@
     save.mileage += mileGain;
     save.runs += 1;
     let isBest = false;
-    if (G.mode === 'timeattack') {
+    if (G.mode === 'challenge') {
       if (sc > save.bestTA) { save.bestTA = sc; isBest = true; }
     } else {
       if (sc > save.best) { save.best = sc; isBest = true; }
     }
     persist();
 
-    el('over-mode').textContent = G.mode === 'timeattack' ? '⏱️ 타임어택' : '♾️ 무한 모드';
+    el('over-mode').textContent = G.mode === 'challenge' ? '⏱️ 챌린지' : '♾️ 무한 모드';
     el('final-score').textContent = sc;
     el('final-coins').textContent = G.coins;
-    el('best-score').textContent = (G.mode === 'timeattack' ? save.bestTA : save.best);
+    el('best-score').textContent = (G.mode === 'challenge' ? save.bestTA : save.best);
     el('run-mile').textContent = '+'+mileGain;
     el('newbest').style.display = isBest ? 'block' : 'none';
     el('hud').classList.remove('show');
@@ -1714,7 +1781,12 @@
     checkAchievements(true);
   }
 
-  el('home-play').addEventListener('click', ()=>startGame(selectedMode));
+  el('home-play').addEventListener('click', ()=>{
+    if (selectedMode === 'challenge') showGuarded('challenge-intro');
+    else startGame('endless');
+  });
+  el('challenge-start').addEventListener('click', ()=>{ hide('challenge-intro'); startGame('challenge'); });
+  el('challenge-back').addEventListener('click', ()=>hide('challenge-intro'));
   el('retry-btn').addEventListener('click', ()=>startGame(G.mode));
   document.querySelectorAll('.mode-pick').forEach(p=>p.addEventListener('click', ()=>{
     selectedMode = p.dataset.mode;
@@ -1786,6 +1858,7 @@
       let actHtml;
       if (equipped) actHtml = `<button class="mini-btn equipped" disabled>장착됨</button>`;
       else if (owned) actHtml = `<button class="mini-btn owned" data-equip="${c.id}">장착</button>`;
+      else if (c.gem) actHtml = `<div class="price" style="color:var(--accent3)">💎 ${c.gem.toLocaleString()}</div><button class="mini-btn" data-buygem="${c.id}" ${save.mileage<c.gem?'disabled':''}>구매</button>`;
       else actHtml = `<div class="price">🪙 ${c.price.toLocaleString()}</div><button class="mini-btn" data-buy="${c.id}" ${save.wallet<c.price?'disabled':''}>구매</button>`;
       card.innerHTML = `
         <div class="swatch" style="background:${grad}">${c.emoji}</div>
@@ -1793,17 +1866,20 @@
         <div class="act">${actHtml}</div>`;
       body.appendChild(card);
     });
-    body.querySelectorAll('[data-buy]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buy)));
+    body.querySelectorAll('[data-buy]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buy, false)));
+    body.querySelectorAll('[data-buygem]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buygem, true)));
     body.querySelectorAll('[data-equip]').forEach(btn=>btn.addEventListener('click', ()=>{
       save.selected = btn.dataset.equip; persist();
       buildPlayer(save.selected); playerParts._charId = save.selected;
       sfx('buy'); renderShop(); refreshHome();
     }));
   }
-  function buyChar(id){
+  function buyChar(id, useGem){
     const c = charById(id);
-    if (save.owned.includes(id) || save.wallet < c.price) return;
-    save.wallet -= c.price; save.owned.push(id); save.selected = id;
+    if (save.owned.includes(id)) return;
+    if (useGem || c.gem) { if (save.mileage < c.gem) return; save.mileage -= c.gem; }
+    else { if (save.wallet < c.price) return; save.wallet -= c.price; }
+    save.owned.push(id); save.selected = id;
     persist(); buildPlayer(id); playerParts._charId = id;
     rewardPopup(c.emoji, c.name, '해금 & 장착!');
     renderShop(); refreshHome(); checkAchievements();
@@ -2074,7 +2150,7 @@
     if (state !== State.PLAY) return;
 
     // Time Attack countdown
-    if (G.mode === 'timeattack') {
+    if (G.mode === 'challenge') {
       G.timeLeft -= dt;
       el('hud-time').textContent = Math.max(0, Math.ceil(G.timeLeft));
       if (G.timeLeft <= 0) { gameOver(); return; }
@@ -2097,10 +2173,15 @@
     const dx = G.laneX - prevX;
     G.lean += ((-dx * 60) - G.lean) * Math.min(1, dt * 10);
 
+    const floor = G.groundY;   // surface height under the player (0, or a train deck)
     if (G.jumping) {
       G.vy += GRAVITY * G.ab.gravMult * dt;
       G.y += G.vy * dt;
-      if (G.y <= 0) { G.y = 0; G.vy = 0; G.jumping = false; }
+      if (G.y <= floor) { G.y = floor; G.vy = 0; G.jumping = false; }
+    } else if (G.y < floor) {
+      G.y = Math.min(floor, G.y + 16*dt);      // climb the stairs onto a train deck
+    } else if (G.y > floor + 0.02) {
+      G.jumping = true; G.vy = 0;              // ran off an edge → start falling
     }
     if (G.sliding) { G.slideT -= dt; if (G.slideT <= 0) G.sliding = false; }
 
@@ -2112,7 +2193,7 @@
     player.position.x = G.laneX;
     player.position.y = G.y + (G.hover ? 0.4 : 0) + G.flyY;
     if (G.sliding && !rocketActive) { player.rotation.x = -1.15; player.position.y = G.y + 0.1; }
-    else { player.rotation.x += ((rocketActive ? -0.3 : 0) - player.rotation.x) * Math.min(1, dt*16); }
+    else { player.rotation.x += ((rocketActive ? -1.35 : 0) - player.rotation.x) * Math.min(1, dt*8); }
     player.rotation.z = THREE.MathUtils.clamp((targetX - G.laneX) * -0.16, -0.42, 0.42);
 
     // smoothly drift biome colours toward the current target (quicker shift)
@@ -2133,6 +2214,11 @@
     } else {
       pp.armL.rotation.x = 1.4; pp.armR.rotation.x = 1.4;
       pp.legL.rotation.x = 0; pp.legR.rotation.x = 0;
+    }
+    if (rocketActive) {
+      // Superman flight pose: arms stretched forward, legs straight back
+      pp.armL.rotation.set(-2.95, 0, 0.18); pp.armR.rotation.set(-2.95, 0, -0.18);
+      pp.legL.rotation.set(0.2, 0, 0);     pp.legR.rotation.set(-0.2, 0, 0);
     }
     if (G.hover) player.position.y += Math.sin(G.runT*0.5)*0.06;
     if (pp.aura.visible) pp.aura.rotation.y += dt*2;
@@ -2162,15 +2248,30 @@
     for (const s of sceneryItems) { s.position.z += move; if (s.position.z > 20) s.position.z -= sceneryItems.length * 16; }
 
     const pBox = playerBox();
+    let groundY = 0;                          // surface under the player this frame
     for (const o of obstacles) {
       if (!o.visible) continue;
       o.position.z += move;
+      const ud = o.userData;
+      if (ud.moving) { ud.mphase += dt * ud.mspeed; o.position.x = THREE.MathUtils.clamp(ud.mbase + Math.sin(ud.mphase)*ud.mamp, -2.2, 2.2); }
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
-      if (G.invuln <= 0 && G.rocket <= 0 && intersectSwept(pBox, o, move)) {
+
+      const overlapX = Math.abs(G.laneX - o.position.x) < ud.half.x + pBox.hx;
+      const overlapZ = Math.abs(PLAYER_Z - o.position.z) < ud.half.z + pBox.hz + move;
+      if (!overlapX || !overlapZ) continue;
+
+      // stand on a train deck (rideable via stairs, or landed on top from a big jump)
+      if (ud.type === 'train' && (ud.rideable || G.y >= ud.topY - 0.3)) {
+        groundY = Math.max(groundY, ud.topY);
+        continue;
+      }
+
+      // otherwise lethal when vertically overlapping
+      if (G.invuln <= 0 && G.rocket <= 0 && Math.abs(pBox.y - o.position.y) < pBox.hy + ud.half.y) {
         if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0 + G.ab.invulnBonus; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
         else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2 + G.ab.invulnBonus; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
         else if (G.reviveLeft > 0) { reviveRun(); return; }
-        else if (G.mode === 'timeattack') {
+        else if (G.mode === 'challenge') {
           G.timeLeft -= 8; G.invuln = 1.5; flash(); sfx('crash'); G.shake = 0.5;
           burst(player.position.x, 1.4, PLAYER_Z, 0xff5555, 18);
           showBanner('-8초', '충돌!'); o.visible = false;
@@ -2180,6 +2281,7 @@
         else { gameOver(); return; }
       }
     }
+    G.groundY = groundY;
     const magnet = G.powerups.magnet > 0 || G.rocket > 0;   // rocket vacuums coins too
     const coinBonus = save.upgrades.multiplier;
     const pullY = G.y + G.flyY + 1.0;
@@ -2212,6 +2314,10 @@
       p.rotation.y += dt * 2;
       p.userData.core.rotation.x += dt * 3;
       p.position.y = 1.2 + Math.sin(clock.elapsedTime*3 + p.position.z)*0.15;
+      // sparkle: pulse the icon and glow the core for emphasis
+      const pulse = 1.7 + Math.sin(clock.elapsedTime*7 + p.position.z)*0.28;
+      p.userData.sprite.scale.setScalar(pulse);
+      p.userData.core.material.emissiveIntensity = 0.7 + Math.sin(clock.elapsedTime*7 + p.position.z)*0.35;
       if (p.position.z > DESPAWN_Z) { p.visible = false; continue; }
       if (intersectSwept(pBox, p, move)) { p.visible = false; activatePower(p.userData.ptype); }
     }
@@ -2238,24 +2344,28 @@
       return;
     }
 
+    const rocketCam = (state === State.PLAY && G.rocket > 0);
     const followX = (state===State.PLAY) ? G.laneX * 0.42 : 0;
     const baseX = CAM_BASE.x + followX;
+    const camYTarget = CAM_BASE.y + (rocketCam ? 2.6 : 0);
+    const camZTarget = CAM_BASE.z + (rocketCam ? 2.2 : 0);
     if (G.shake > 0) {
       G.shake = Math.max(0, G.shake - 0.016);
-      camera.position.set(baseX + (Math.random()-0.5)*G.shake*1.6, CAM_BASE.y + (Math.random()-0.5)*G.shake*1.6, CAM_BASE.z);
+      camera.position.set(baseX + (Math.random()-0.5)*G.shake*1.6, camYTarget + (Math.random()-0.5)*G.shake*1.6, camZTarget);
     } else {
       camera.position.x += (baseX - camera.position.x) * 0.12;
-      camera.position.y += (CAM_BASE.y - camera.position.y) * 0.2;
-      camera.position.z = CAM_BASE.z;
+      camera.position.y += (camYTarget - camera.position.y) * (rocketCam ? 0.06 : 0.2);
+      camera.position.z += (camZTarget - camera.position.z) * 0.08;
     }
     // dynamic FOV: subtly widens with speed for a sense of rush
-    const targetFov = 62 + (state===State.PLAY ? (G.speed - BASE_SPEED) * 0.32 : 0);
+    const targetFov = 62 + (state===State.PLAY ? (G.speed - BASE_SPEED) * 0.32 : 0) + (rocketCam ? 8 : 0);
     camera.fov += (targetFov - camera.fov) * 0.06;
     camera.updateProjectionMatrix();
-    // look slightly toward the runner so the world parallaxes with movement
+    // look up to the sky during rocket flight, else toward the runner
     const lookX = (state===State.PLAY) ? G.laneX * 0.18 : 0;
-    camera.lookAt(lookX, 1.6, -14);
-    if (state === State.PLAY) camera.rotation.z += -G.laneX * 0.012;   // subtle bank into turns
+    const lookY = rocketCam ? 10 : 1.6;
+    camera.lookAt(lookX, lookY, -14);
+    if (state === State.PLAY && !rocketCam) camera.rotation.z += -G.laneX * 0.012;   // subtle bank into turns
     renderer.render(scene, camera);
   }
 
