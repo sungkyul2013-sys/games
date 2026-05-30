@@ -361,9 +361,9 @@
   /* ============ HOME — premium polish ============ */
   #home {
     background:
-      radial-gradient(circle at 50% 14%, rgba(120,60,160,.34), transparent 55%),
-      radial-gradient(circle at 50% 110%, rgba(255,150,90,.22), transparent 60%),
-      linear-gradient(180deg, rgba(14,8,30,.30), rgba(8,5,20,.62));
+      radial-gradient(circle at 50% 12%, rgba(120,60,160,.30), transparent 50%),
+      radial-gradient(circle at 50% 112%, rgba(255,150,90,.20), transparent 58%),
+      linear-gradient(180deg, rgba(14,8,30,.12) 30%, rgba(8,5,20,.5));
   }
   #home-fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
   #home > *:not(#home-fx) { position:relative; z-index:1; }
@@ -435,6 +435,57 @@
   }
   .tab-btn:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.16); }
   .tab-btn .ic { filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
+
+  /* in-game consumable item buttons */
+  #item-bar {
+    position: fixed; left: 16px; bottom: 22px; z-index: 11;
+    display: none; flex-direction: column; gap: 12px;
+  }
+  #item-bar.show { display: flex; }
+  .item-btn {
+    pointer-events: auto; cursor: pointer; position: relative;
+    width: 60px; height: 60px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(60,34,96,.6), rgba(22,14,44,.6));
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center; font-size: 30px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.14);
+    transition: transform .1s ease, filter .15s ease;
+  }
+  .item-btn:active { transform: scale(.9); }
+  .item-btn.empty { filter: grayscale(.85) brightness(.55); pointer-events: none; opacity: .5; }
+  .item-btn .ct {
+    position: absolute; bottom: -4px; right: -4px; min-width: 22px; height: 22px;
+    line-height: 22px; padding: 0 5px; border-radius: 11px; font-size: 13px; font-weight: bold;
+    background: linear-gradient(120deg, var(--gold), var(--accent)); color: #2a1030;
+    box-shadow: 0 3px 8px rgba(0,0,0,.4);
+  }
+
+  /* new-record confetti */
+  #confetti { position: fixed; inset: 0; z-index: 58; pointer-events: none; overflow: hidden; }
+  .confetti-pc { position: absolute; top: -24px; width: 10px; height: 15px; border-radius: 2px; opacity: .95;
+    will-change: transform; animation: confFall linear forwards; }
+  @keyframes confFall { to { transform: translateY(112vh) rotate(900deg); } }
+
+  /* home: frame the showcased 3D character; nameplate sits low like a podium */
+  #home-center { justify-content: flex-end; padding-bottom: 4px; }
+
+  /* mode picker */
+  #mode-row { display: flex; gap: 10px; justify-content: center; margin: 0 auto 12px; padding: 0 18px; }
+  .mode-pick {
+    cursor: pointer; pointer-events: auto; display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 16px; font-weight: bold; font-size: 14px;
+    background: linear-gradient(180deg, rgba(40,24,70,.5), rgba(18,11,36,.5));
+    border: 1px solid var(--glass-border); backdrop-filter: blur(8px);
+    transition: transform .12s ease, box-shadow .18s ease, border-color .18s ease; opacity: .7;
+  }
+  .mode-pick .mi { font-size: 18px; }
+  .mode-pick.active {
+    opacity: 1; border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(255,216,107,.35), 0 8px 22px rgba(255,180,80,.25);
+    background: linear-gradient(180deg, rgba(70,40,30,.5), rgba(40,20,30,.5));
+  }
+  .mode-pick:active { transform: scale(.95); }
 </style>
 </head>
 <body>
@@ -448,9 +499,13 @@
         <div class="label">Score</div>
         <div class="value" id="hud-score">0</div>
       </div>
-      <div class="hud-pill" style="min-width:64px">
+      <div class="hud-pill" id="pill-level" style="min-width:64px">
         <div class="label">Level</div>
         <div class="value" id="hud-level" style="color:var(--accent3)">1</div>
+      </div>
+      <div class="hud-pill" id="pill-time" style="min-width:64px; display:none">
+        <div class="label">Time</div>
+        <div class="value" id="hud-time" style="color:var(--gold)">75</div>
       </div>
     </div>
     <div id="hud-right">
@@ -464,7 +519,12 @@
   <div id="combo"><div class="x" id="combo-x">x2</div><div class="t">Coin Combo</div></div>
   <div id="banner"><div class="b-main" id="banner-main"></div><div class="b-sub" id="banner-sub"></div></div>
   <div id="powerup-bar"></div>
+  <div id="item-bar">
+    <div class="item-btn" id="use-bomb"><span class="ic">💣</span><span class="ct" id="ct-bomb">0</span></div>
+    <div class="item-btn" id="use-rocket"><span class="ic">🚀</span><span class="ct" id="ct-rocket">0</span></div>
+  </div>
   <div class="flash" id="flash"></div>
+  <div id="confetti"></div>
   <div id="toast-wrap"></div>
   <div id="reward-pop"><div class="box"><div class="big" id="rp-ic">🎁</div><div class="amt" id="rp-amt">+100</div><div class="lbl" id="rp-lbl">Reward</div></div></div>
 
@@ -505,11 +565,16 @@
       </div>
     </div>
 
+    <div id="mode-row">
+      <div class="mode-pick active" data-mode="endless"><span class="mi">♾️</span><span class="ml">무한 모드</span></div>
+      <div class="mode-pick" data-mode="timeattack"><span class="mi">⏱️</span><span class="ml">타임어택</span></div>
+    </div>
     <button id="home-play">게임 시작 ▶</button>
 
     <div id="tabbar">
-      <div class="tab-btn" data-sheet="shop-sheet"><span class="ic">🛒</span><span class="tl">상점</span><span class="badge" id="badge-shop">!</span></div>
-      <div class="tab-btn" data-sheet="upgrade-sheet"><span class="ic">⬆️</span><span class="tl">업그레이드</span></div>
+      <div class="tab-btn" data-sheet="shop-sheet"><span class="ic">🛒</span><span class="tl">캐릭터</span><span class="badge" id="badge-shop">!</span></div>
+      <div class="tab-btn" data-sheet="consum-sheet"><span class="ic">🎒</span><span class="tl">아이템</span></div>
+      <div class="tab-btn" data-sheet="upgrade-sheet"><span class="ic">⬆️</span><span class="tl">강화</span></div>
       <div class="tab-btn" data-sheet="daily-sheet"><span class="ic">🎁</span><span class="tl">보상</span><span class="badge" id="badge-daily">!</span></div>
       <div class="tab-btn" data-sheet="ach-sheet"><span class="ic">🏆</span><span class="tl">업적</span><span class="badge" id="badge-ach">!</span></div>
     </div>
@@ -520,6 +585,13 @@
     <div class="sheet-head"><h2>🛒 캐릭터 상점</h2><div class="close-x" data-close>✕</div></div>
     <div class="sheet-sub">코인으로 캐릭터를 잠금 해제하고 장착하세요</div>
     <div class="sheet-body" id="shop-body"></div>
+  </div>
+
+  <!-- ============ CONSUMABLE ITEMS ============ -->
+  <div class="sheet hidden" id="consum-sheet">
+    <div class="sheet-head"><h2>🎒 아이템 상점</h2><div class="close-x" data-close>✕</div></div>
+    <div class="sheet-sub">코인으로 소모성 아이템을 구매하세요 · 게임 중 버튼으로 사용</div>
+    <div class="sheet-body" id="consum-body"></div>
   </div>
 
   <!-- ============ UPGRADES ============ -->
@@ -553,6 +625,7 @@
   <!-- Game over -->
   <div class="overlay hidden" id="over-overlay">
     <div class="title" style="font-size:clamp(34px,9vw,70px)">GAME OVER</div>
+    <div id="over-mode" style="margin-top:6px;letter-spacing:3px;opacity:.85;font-weight:bold">♾️ 무한 모드</div>
     <div class="panel">
       <div class="stat-row">
         <div class="blk"><div class="v" id="final-score">0</div><div class="l">Score</div></div>
@@ -597,15 +670,15 @@
   const GRAVITY = -38;
   const JUMP_V = 14;
   const SLIDE_TIME = 0.62;
-  const BASE_SPEED = 13;
-  const MAX_SPEED = 36;
-  const SPEED_RAMP = 0.33;      // gentler acceleration (was 0.42)
+  const BASE_SPEED = 11;
+  const MAX_SPEED = 25;         // calmer top speed (was 34) — fixes "too fast"
+  const SPEED_RAMP = 0.20;      // gentle acceleration
   const SPAWN_AHEAD = -130;
   const DESPAWN_Z = 14;
   const TILE_LEN = 30;
-  const SEG_GAP = 10;           // a touch more spacing between rows
-  const LEVEL_DIST = 300;       // distance per level (faster levels & biome shifts)
-  const CHECKPOINT_DIST = 750;  // distance per checkpoint
+  const SEG_GAP = 12;           // more spacing between rows (fewer obstacles)
+  const LEVEL_DIST = 320;       // distance per level (biome shifts)
+  const CHECKPOINT_DIST = 800;  // distance per checkpoint
 
   // Biomes cycle as you level up — sky / fog / sun colours shift smoothly
   const BIOMES = [
@@ -625,12 +698,14 @@
     wallet: 0,            // total coins banked
     mileage: 0,           // mileage points (premium currency)
     best: 0,
+    bestTA: 0,            // best time-attack score
     totalCoins: 0,        // lifetime coins
     totalDistance: 0,     // lifetime distance (m)
     runs: 0,
     owned: ['runner'],    // owned character ids
     selected: 'runner',
     upgrades: { magnet: 0, boots: 0, multiplier: 0, headstart: 0, shield: 0, x2: 0 },
+    items: { bomb: 0, rocket: 0 },   // consumable items (coins only)
     daily: { lastClaim: 0, streak: 0 },
     achClaimed: [],       // claimed achievement ids
     muted: false,
@@ -641,6 +716,7 @@
       const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
       if (raw && typeof raw === 'object') return Object.assign(structuredClone(DEFAULT_SAVE), raw,
         { upgrades: Object.assign({}, DEFAULT_SAVE.upgrades, raw.upgrades||{}),
+          items: Object.assign({}, DEFAULT_SAVE.items, raw.items||{}),
           daily: Object.assign({}, DEFAULT_SAVE.daily, raw.daily||{}) });
     } catch(e){}
     // migrate old best
@@ -691,6 +767,12 @@
     { id:'shield',    name:'시작 보호막',    emoji:'🛡️', max:3, desc:(l)=>`시작 시 보호막 ${l}회`,          cost:(l)=>500*(l+1) },
   ];
   const upById = (id)=>UPGRADES.find(u=>u.id===id);
+
+  // consumable items — bought with COINS only, carried into a run and used live
+  const CONSUMABLES = [
+    { id:'bomb',   name:'폭탄',  emoji:'💣', price:150, desc:'사용 시 주변 장애물을 폭파하고 잠시 무적이 됩니다' },
+    { id:'rocket', name:'로켓',  emoji:'🚀', price:250, desc:'사용 시 하늘로 날아올라 모든 장애물을 통과합니다' },
+  ];
 
   // achievements: stat-based; reward coins
   const ACHIEVEMENTS = [
@@ -1134,6 +1216,17 @@
 
   const PW_TYPES = ['magnet', 'boots', 'x2', 'hover', 'shield', 'rocket', 'rocket'];
   const pwColors = { magnet: 0x55aaff, boots: 0x66ff99, x2: 0xffaa33, hover: 0x6be3ff, shield: 0x66ffcc, rocket: 0xff5533 };
+  const PW_ICONS = { magnet:'🧲', boots:'🥾', x2:'✨', hover:'🛹', shield:'🛡️', rocket:'🚀' };
+  const iconTexCache = {};
+  function iconTexture(emoji){
+    if (iconTexCache[emoji]) return iconTexCache[emoji];
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.font = '92px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, 64, 72);
+    const tex = new THREE.CanvasTexture(c); tex.needsUpdate = true;
+    iconTexCache[emoji] = tex; return tex;
+  }
   function getPowerup(type) {
     let p = powerups.find(m => !m.visible);
     if (!p) {
@@ -1144,13 +1237,19 @@
       );
       box.castShadow = true;
       p.add(box);
-      p.userData = { half: {x:0.6,y:0.6,z:0.6}, core: box };
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false, depthTest:false, fog:false }));
+      sprite.scale.set(1.2, 1.2, 1.2);
+      sprite.position.y = 1.15;
+      p.add(sprite);
+      p.userData = { half: {x:0.6,y:0.6,z:0.6}, core: box, sprite };
       scene.add(p);
       powerups.push(p);
     }
     p.userData.ptype = type;
     p.userData.core.material.color.set(pwColors[type]);
     p.userData.core.material.emissive.set(pwColors[type]);
+    p.userData.sprite.material.map = iconTexture(PW_ICONS[type]);
+    p.userData.sprite.material.needsUpdate = true;
     p.visible = true;
     return p;
   }
@@ -1178,10 +1277,12 @@
     shake: 0,
     level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
     lean: 0, biome: 0, reviveLeft: 0,
-    rocket: 0, flyY: 0,
+    rocket: 0, flyY: 0, lastPwDist: 0,
+    mode: 'endless', timeLeft: 0,
     ab: abilities('runner'),
   };
   const ROCKET_DUR = 5.0;   // seconds of rocket flight
+  const TIME_ATTACK_SECONDS = 75;
   // biome colour interpolation targets (current shown values are in skyMat uniforms)
   const biomeTarget = {
     top: new THREE.Color(BIOMES[0].top), mid: new THREE.Color(BIOMES[0].mid),
@@ -1203,7 +1304,7 @@
     sunDisk.material.color.copy(biomeTarget.sun);
   }
 
-  function resetGame() {
+  function resetGame(mode) {
     hideAll();
     const u = save.upgrades;
     Object.assign(G, {
@@ -1213,13 +1314,18 @@
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
       shields: u.shield, combo: 0, comboT: 0, shake: 0,
       level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
-      lean: 0, biome: 0, rocket: 0, flyY: 0,
+      lean: 0, biome: 0, rocket: 0, flyY: 0, lastPwDist: 0,
+      mode: mode || 'endless',
+      timeLeft: mode === 'timeattack' ? TIME_ATTACK_SECONDS : 0,
     });
     G.ab = abilities(save.selected);
     G.reviveLeft = G.ab.revive;
     player.position.set(0, 0, PLAYER_Z);
     player.rotation.set(0,0,0);
-    if(playerParts){ playerParts.board.visible=false; playerParts.aura.visible=false; playerParts.shieldMesh.visible = G.shields>0; }
+    if(playerParts){
+      playerParts.board.visible=false; playerParts.aura.visible=false; playerParts.shieldMesh.visible = G.shields>0;
+      ['armL','armR','legL','legR'].forEach(n=>playerParts[n].rotation.set(0,0,0));
+    }
     // headstart: pre-accelerate + skip distance
     if (u.headstart>0){
       G.speed = Math.min(MAX_SPEED, BASE_SPEED + u.headstart*5);
@@ -1246,21 +1352,21 @@
   // Guarantees: trains never block all 3 lanes; every row leaves at least one
   // survivable lane reachable with a single action. Difficulty scales with level.
   function spawnRow(z) {
-    const diff = Math.min(1, (G.level-1)/12);  // ramps up more slowly now
+    const diff = Math.min(1, (G.level-1)/15);  // ramps up slowly
     const r = Math.random();
 
-    // breathing-room coin rows (more frequent → easier)
-    if (r < 0.20 - diff*0.06) { spawnCoinRow(z, rnd3()); maybePowerup(z, [0,1,2]); return; }
+    // breathing-room coin rows (very frequent early → easier)
+    if (r < 0.32 - diff*0.06) { spawnCoinRow(z, rnd3()); maybePowerup(z, [0,1,2]); return; }
 
     const occ = {};   // lane -> 'train' | 'low' | 'high'
     const lanes = [0,1,2];
 
-    if (Math.random() < 0.11 + diff*0.14) {
+    if (Math.random() < 0.08 + diff*0.12) {
       // FULL-WIDTH GATE: a barrier on every lane, but each is single-action → always passable
       lanes.forEach(l => { occ[l] = Math.random() < 0.5 ? 'low' : 'high'; });
     } else {
       // 1–2 hazards on random lanes; double hazards mostly at higher levels
-      const hazardCount = 1 + (Math.random() < (0.18 + diff*0.4) ? 1 : 0);
+      const hazardCount = 1 + (Math.random() < (0.10 + diff*0.38) ? 1 : 0);
       const order = shuffle(lanes.slice());
       for (let i=0;i<hazardCount;i++){
         const t = Math.random();
@@ -1293,9 +1399,10 @@
   }
   function maybePowerup(z, freeLanes){
     if (!freeLanes.length) return;
-    // far more generous, with a big early-game boost so items appear right away
-    const chance = 0.30 + (G.distance < 600 ? 0.22 : 0);
-    if (Math.random() >= chance) return;
+    // keep power-ups special: enforce a minimum spacing so they never cluster
+    if (G.distance - G.lastPwDist < 110) return;
+    if (Math.random() >= 0.5) return;
+    G.lastPwDist = G.distance;
     const type = PW_TYPES[(Math.random()*PW_TYPES.length)|0];
     const p = getPowerup(type);
     p.position.set(LANES[freeLanes[(Math.random()*freeLanes.length)|0]], 1.2, z - 5);
@@ -1360,8 +1467,9 @@
     const dy = e.touches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
     if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
-    if (adx > ady) moveLane(dx > 0 ? 1 : -1);
-    else if (dy > 0) slide(); else jump();
+    // diagonal-friendly: each axis fires independently
+    if (adx >= SWIPE_MIN) moveLane(dx > 0 ? 1 : -1);
+    if (ady >= SWIPE_MIN) { if (dy > 0) slide(); else jump(); }
     didSwipe = true;   // locked until finger lifts
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
@@ -1414,6 +1522,13 @@
     const hx = om.userData.half.x, hy = om.userData.half.y, hz = om.userData.half.z;
     const ox = om.position.x, oy = om.position.y, oz = om.position.z;
     return Math.abs(a.x-ox) < a.hx+hx && Math.abs(a.y-oy) < a.hy+hy && Math.abs(a.z-oz) < a.hz+hz;
+  }
+  // swept along z: expands the z test by how far the object travelled this frame
+  // so fast objects can't "tunnel" straight through the player between frames
+  function intersectSwept(a, om, sweep) {
+    const hx = om.userData.half.x, hy = om.userData.half.y, hz = om.userData.half.z;
+    const ox = om.position.x, oy = om.position.y, oz = om.position.z;
+    return Math.abs(a.x-ox) < a.hx+hx && Math.abs(a.y-oy) < a.hy+hy && Math.abs(a.z-oz) < a.hz+hz+sweep;
   }
 
   // ===================================================================
@@ -1468,7 +1583,7 @@
   function onLevelUp(){
     G.level++;
     document.getElementById('hud-level').textContent = G.level;
-    G.speed = Math.min(MAX_SPEED + G.level*0.9, G.speed + 1.8);   // snap a little faster
+    G.speed = Math.min(MAX_SPEED + G.level*0.45, G.speed + 1.0);  // snap a little faster
     const newBiome = (G.level-1) % BIOMES.length;
     if (newBiome !== G.biome){ G.biome = newBiome; const b = setBiome(newBiome); showBanner('LEVEL '+G.level, b.name+' 진입'); }
     else showBanner('LEVEL '+G.level, '속도 상승');
@@ -1536,24 +1651,32 @@
   // ===================================================================
   //  Game flow
   // ===================================================================
-  function startGame() {
+  let selectedMode = 'endless';
+  function startGame(mode) {
+    const m = (mode === 'endless' || mode === 'timeattack') ? mode : selectedMode;
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if (!playerParts || playerParts._charId !== save.selected) { buildPlayer(save.selected); playerParts._charId = save.selected; }
-    resetGame();
+    resetGame(m);
     state = State.PLAY;
+    el('pill-level').style.display = (m === 'timeattack') ? 'none' : '';
+    el('pill-time').style.display  = (m === 'timeattack') ? '' : 'none';
+    el('hud-time').textContent = Math.ceil(G.timeLeft);
     hide('home'); hide('over-overlay'); hide('pause-overlay');
     closeAllSheets();
     el('hud').classList.add('show');
+    updateItemBar();
   }
   function togglePause() {
     if (state === State.PLAY) { state = State.PAUSE; showGuarded('pause-overlay'); }
     else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
+    updateItemBar();
   }
   function goHome() {
     state = State.HOME;
     hide('pause-overlay'); hide('over-overlay');
     el('hud').classList.remove('show');
+    updateItemBar();
     show('home');
     refreshHome();
   }
@@ -1561,6 +1684,7 @@
     state = State.OVER;
     sfx('crash');
     G.shake = 0.6;
+    updateItemBar();
     const sc = Math.floor(G.score);
     const dist = Math.floor(G.distance);
     // bank coins + mileage
@@ -1571,21 +1695,31 @@
     save.mileage += mileGain;
     save.runs += 1;
     let isBest = false;
-    if (sc > save.best) { save.best = sc; isBest = true; }
+    if (G.mode === 'timeattack') {
+      if (sc > save.bestTA) { save.bestTA = sc; isBest = true; }
+    } else {
+      if (sc > save.best) { save.best = sc; isBest = true; }
+    }
     persist();
 
+    el('over-mode').textContent = G.mode === 'timeattack' ? '⏱️ 타임어택' : '♾️ 무한 모드';
     el('final-score').textContent = sc;
     el('final-coins').textContent = G.coins;
-    el('best-score').textContent = save.best;
+    el('best-score').textContent = (G.mode === 'timeattack' ? save.bestTA : save.best);
     el('run-mile').textContent = '+'+mileGain;
     el('newbest').style.display = isBest ? 'block' : 'none';
     el('hud').classList.remove('show');
     showGuarded('over-overlay');
+    if (isBest) { confettiBurst(); setTimeout(()=>sfx('reward'), 300); }
     checkAchievements(true);
   }
 
-  el('home-play').addEventListener('click', startGame);
-  el('retry-btn').addEventListener('click', startGame);
+  el('home-play').addEventListener('click', ()=>startGame(selectedMode));
+  el('retry-btn').addEventListener('click', ()=>startGame(G.mode));
+  document.querySelectorAll('.mode-pick').forEach(p=>p.addEventListener('click', ()=>{
+    selectedMode = p.dataset.mode;
+    document.querySelectorAll('.mode-pick').forEach(q=>q.classList.toggle('active', q===p));
+  }));
   el('resume-btn').addEventListener('click', togglePause);
   el('home-from-pause').addEventListener('click', goHome);
   el('home-from-over').addEventListener('click', goHome);
@@ -1625,6 +1759,7 @@
     b.addEventListener('click', ()=>{
       const id = b.dataset.sheet;
       if (id==='shop-sheet') renderShop();
+      else if (id==='consum-sheet') renderConsum();
       else if (id==='upgrade-sheet') renderUpgrades();
       else if (id==='daily-sheet') renderDaily();
       else if (id==='ach-sheet') renderAch();
@@ -1707,6 +1842,80 @@
     persist(); sfx('buy');
     toast(`${u.name} Lv.${lv+1}`, u.emoji);
     renderUpgrades(); refreshHome();
+  }
+
+  // ---- CONSUMABLE ITEMS render ----
+  function renderConsum() {
+    const body = el('consum-body');
+    body.innerHTML = '';
+    CONSUMABLES.forEach(it=>{
+      const have = save.items[it.id]||0;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="swatch" style="background:linear-gradient(135deg,#ff7e5f,#ffd86b)">${it.emoji}</div>
+        <div class="info"><div class="nm">${it.name} <span style="font-size:12px;opacity:.6;font-weight:normal;">· 보유 ${have}</span></div><div class="ds">${it.desc}</div></div>
+        <div class="act"><div class="price">🪙 ${it.price.toLocaleString()}</div><button class="mini-btn" data-buy-item="${it.id}" ${save.wallet<it.price?'disabled':''}>구매</button></div>`;
+      body.appendChild(card);
+    });
+    body.querySelectorAll('[data-buy-item]').forEach(btn=>btn.addEventListener('click', ()=>buyConsum(btn.dataset.buyItem)));
+  }
+  function buyConsum(id){
+    const it = CONSUMABLES.find(c=>c.id===id);
+    if (!it || save.wallet < it.price) return;
+    save.wallet -= it.price; save.items[id] = (save.items[id]||0)+1;
+    persist(); sfx('buy');
+    toast(`${it.name} 구매! (보유 ${save.items[id]})`, it.emoji);
+    renderConsum(); refreshHome(); updateItemBar();
+  }
+
+  // ---- in-game item bar + usage ----
+  function updateItemBar(){
+    el('item-bar').classList.toggle('show', state===State.PLAY);
+    el('ct-bomb').textContent = save.items.bomb;
+    el('ct-rocket').textContent = save.items.rocket;
+    el('use-bomb').classList.toggle('empty', save.items.bomb<=0);
+    el('use-rocket').classList.toggle('empty', save.items.rocket<=0);
+  }
+  function useConsumable(id){
+    if (state!==State.PLAY || (save.items[id]||0)<=0) return;
+    save.items[id]--; persist();
+    if (id==='bomb') explodeBomb();
+    else if (id==='rocket') activatePower('rocket');
+    updateItemBar();
+  }
+  function explodeBomb(){
+    let cleared = 0;
+    for (const o of obstacles){
+      if (o.visible && o.position.z > -60 && o.position.z < DESPAWN_Z){
+        burst(o.position.x, o.userData.y, o.position.z, 0xffaa33, 14);
+        o.visible = false; cleared++;
+      }
+    }
+    G.invuln = Math.max(G.invuln, 1.4);
+    flash(); G.shake = 0.6; sfx('crash');
+    burst(player.position.x, 1.4, PLAYER_Z, 0xff7733, 34);
+    showBanner('💣 폭발!', cleared>0 ? cleared+'개 제거' : '길을 텄다');
+  }
+  el('use-bomb').addEventListener('click', ()=>useConsumable('bomb'));
+  el('use-rocket').addEventListener('click', ()=>useConsumable('rocket'));
+
+  // ---- new-record confetti ----
+  function confettiBurst(){
+    const wrap = el('confetti');
+    const colors = ['#ffd86b','#ff7eb3','#8a7bff','#66ffb0','#ff5533','#6be3ff','#fff1c9'];
+    for (let i=0;i<120;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-pc';
+      p.style.left = (Math.random()*100)+'vw';
+      p.style.background = colors[(Math.random()*colors.length)|0];
+      p.style.width = (7+Math.random()*7)+'px';
+      p.style.height = (10+Math.random()*9)+'px';
+      p.style.animationDuration = (1.8 + Math.random()*1.8)+'s';
+      p.style.animationDelay = (Math.random()*0.5)+'s';
+      wrap.appendChild(p);
+      setTimeout(()=>p.remove(), 4400);
+    }
   }
 
   // ---- DAILY + MILEAGE render ----
@@ -1820,17 +2029,58 @@
   // ===================================================================
   const clock = new THREE.Clock();
 
+  // Home screen: the selected character pops out and cycles through poses
+  function animateHomePlayer(dt){
+    if (!playerParts) return;
+    G.homeT = (G.homeT || 0) + dt;
+    const t = G.homeT, pp = playerParts;
+    const POSE_LEN = 3.0;
+    const pose = Math.floor(t / POSE_LEN) % 5;
+    const k = (t % POSE_LEN) / POSE_LEN;
+    player.position.set(0, 0, 0);
+    player.rotation.set(0, Math.PI, 0);          // face the camera
+    let bob = Math.sin(t*2) * 0.05;
+    pp.armL.rotation.set(0,0,0.12); pp.armR.rotation.set(0,0,-0.12);
+    pp.legL.rotation.set(0,0,0);    pp.legR.rotation.set(0,0,0);
+    if (pose === 0) {                 // idle bounce
+      pp.armL.rotation.x = Math.sin(t*2)*0.18; pp.armR.rotation.x = -Math.sin(t*2)*0.18;
+    } else if (pose === 1) {          // wave hello
+      pp.armR.rotation.z = -2.2; pp.armR.rotation.x = Math.sin(t*9)*0.35;
+    } else if (pose === 2) {          // hop
+      bob += Math.max(0, Math.sin(k*Math.PI*4)) * 0.5;
+      pp.armL.rotation.x = -2.3; pp.armR.rotation.x = -2.3;
+      pp.legL.rotation.x = 0.5;  pp.legR.rotation.x = -0.5;
+    } else if (pose === 3) {          // spin showcase
+      player.rotation.y = Math.PI + k*Math.PI*2;
+      pp.armL.rotation.z = 0.5; pp.armR.rotation.z = -0.5;
+    } else {                          // victory
+      pp.armL.rotation.x = -2.6; pp.armR.rotation.x = -2.6;
+      pp.armL.rotation.z = 0.4;  pp.armR.rotation.z = -0.4;
+      if (Math.random() < 0.18) burst(0, 2.7, 0.4, pp.trailColor, 2);
+    }
+    player.position.y = bob;
+  }
+
   function update(dt) {
-    // home background idle scroll
+    // home background idle scroll + character showcase poses
     if (state === State.HOME) {
       const move = 6*dt;
       for (const t of groundTiles){ t.position.z += move; if (t.position.z > TILE_LEN*1.5) t.position.z -= groundTiles.length*TILE_LEN; }
       for (const s of sceneryItems){ s.position.z += move; if (s.position.z > 20) s.position.z -= sceneryItems.length*16; }
+      updateSparks(dt);
+      animateHomePlayer(dt);
       return;
     }
     if (state !== State.PLAY) return;
 
-    const effMax = MAX_SPEED + G.level * 0.9;          // gentler ramp per level
+    // Time Attack countdown
+    if (G.mode === 'timeattack') {
+      G.timeLeft -= dt;
+      el('hud-time').textContent = Math.max(0, Math.ceil(G.timeLeft));
+      if (G.timeLeft <= 0) { gameOver(); return; }
+    }
+
+    const effMax = MAX_SPEED + G.level * 0.45;         // gentle ramp per level
     G.speed = Math.min(effMax, G.speed + SPEED_RAMP * dt);
     const move = G.speed * dt;
     G.distance += move;
@@ -1916,10 +2166,17 @@
       if (!o.visible) continue;
       o.position.z += move;
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
-      if (G.invuln <= 0 && G.rocket <= 0 && intersect(pBox, o)) {
+      if (G.invuln <= 0 && G.rocket <= 0 && intersectSwept(pBox, o, move)) {
         if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0 + G.ab.invulnBonus; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
         else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2 + G.ab.invulnBonus; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
         else if (G.reviveLeft > 0) { reviveRun(); return; }
+        else if (G.mode === 'timeattack') {
+          G.timeLeft -= 8; G.invuln = 1.5; flash(); sfx('crash'); G.shake = 0.5;
+          burst(player.position.x, 1.4, PLAYER_Z, 0xff5555, 18);
+          showBanner('-8초', '충돌!'); o.visible = false;
+          el('hud-time').textContent = Math.max(0, Math.ceil(G.timeLeft));
+          if (G.timeLeft <= 0) { gameOver(); return; }
+        }
         else { gameOver(); return; }
       }
     }
@@ -1938,7 +2195,7 @@
         }
       }
       if (c.position.z > DESPAWN_Z) { c.visible = false; continue; }
-      if (intersect(pBox, c)) {
+      if (intersectSwept(pBox, c, move)) {
         c.visible = false;
         G.combo++; G.comboT = 2.0; updateComboUI();
         const cm = comboMult();
@@ -1956,7 +2213,7 @@
       p.userData.core.rotation.x += dt * 3;
       p.position.y = 1.2 + Math.sin(clock.elapsedTime*3 + p.position.z)*0.15;
       if (p.position.z > DESPAWN_Z) { p.visible = false; continue; }
-      if (intersect(pBox, p)) { p.visible = false; activatePower(p.userData.ptype); }
+      if (intersectSwept(pBox, p, move)) { p.visible = false; activatePower(p.userData.ptype); }
     }
 
     G.nextSpawnZ += move;
@@ -1965,9 +2222,22 @@
     updateHUD();
   }
 
+  const HOME_CAM = new THREE.Vector3(0, 2.35, 6.4);
   function render() {
     sunGlow.material.opacity = 0.3 + Math.sin(clock.elapsedTime*1.5)*0.06;
     sunDisk.rotation.z += 0.0005;
+
+    if (state === State.HOME) {
+      // close-up portrait framing of the showcased character
+      camera.position.x += (HOME_CAM.x - camera.position.x) * 0.06;
+      camera.position.y += (HOME_CAM.y - camera.position.y) * 0.06;
+      camera.position.z += (HOME_CAM.z - camera.position.z) * 0.06;
+      if (Math.abs(camera.fov - 58) > 0.1) { camera.fov += (58 - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
+      camera.lookAt(0, 1.5, 0);
+      renderer.render(scene, camera);
+      return;
+    }
+
     const followX = (state===State.PLAY) ? G.laneX * 0.42 : 0;
     const baseX = CAM_BASE.x + followX;
     if (G.shake > 0) {
@@ -1978,9 +2248,14 @@
       camera.position.y += (CAM_BASE.y - camera.position.y) * 0.2;
       camera.position.z = CAM_BASE.z;
     }
+    // dynamic FOV: subtly widens with speed for a sense of rush
+    const targetFov = 62 + (state===State.PLAY ? (G.speed - BASE_SPEED) * 0.32 : 0);
+    camera.fov += (targetFov - camera.fov) * 0.06;
+    camera.updateProjectionMatrix();
     // look slightly toward the runner so the world parallaxes with movement
     const lookX = (state===State.PLAY) ? G.laneX * 0.18 : 0;
     camera.lookAt(lookX, 1.6, -14);
+    if (state === State.PLAY) camera.rotation.z += -G.laneX * 0.012;   // subtle bank into turns
     renderer.render(scene, camera);
   }
 
