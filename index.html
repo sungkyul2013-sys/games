@@ -22,9 +22,13 @@
     font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
     color: #fff;
     user-select: none;
-    touch-action: none;
   }
-  #game-canvas { position: fixed; inset: 0; display: block; }
+  /* only the play surface swallows default gestures; UI keeps instant tapping */
+  #game-canvas { position: fixed; inset: 0; display: block; touch-action: none; }
+  button, .btn, .mini-btn, .tab-btn, .item-btn, .close-x, .mode-pick,
+  #pause-btn, #home-play, #settings-btn, .day-cell, [data-close] {
+    touch-action: manipulation;
+  }
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
     background: radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(8,4,18,.32) 88%, rgba(6,3,14,.55) 100%); }
 
@@ -438,10 +442,11 @@
 
   /* in-game consumable item buttons */
   #item-bar {
-    position: fixed; left: 18px; top: 96px; z-index: 11;
-    display: none; flex-direction: column; gap: 10px;
+    position: fixed; left: 16px; bottom: 24px; z-index: 11;
+    display: none; flex-direction: column; gap: 12px;
   }
   #item-bar.show { display: flex; }
+  .item-btn .ic { pointer-events: none; }
   .item-btn {
     pointer-events: auto; cursor: pointer; position: relative;
     width: 60px; height: 60px; border-radius: 18px;
@@ -1177,47 +1182,37 @@
   const obMatHigh = new THREE.MeshStandardMaterial({ color: 0x8a6cff, roughness: .5, emissive: 0x4422ff, emissiveIntensity:.4 });
 
   function makeObstacle(type) {
-    let mesh, h, w, d, y, stairs = null;
-    if (type === 'train') {
-      w = 1.7; h = 2.6; d = 8; y = h/2;
+    let mesh, h, w, d, y;
+    if (type === 'train') {            // tall block — dodge left/right
+      w = 1.7; h = 2.6; d = 7; y = h/2;
       mesh = new THREE.Group();
       const body = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatTrain);
       body.castShadow = true; body.receiveShadow = true; mesh.add(body);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(w*1.05,0.3,d), new THREE.MeshStandardMaterial({color:0xff5a78, emissive:0xff2244, emissiveIntensity:.35}));
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(w*1.05,0.35,d), new THREE.MeshStandardMaterial({color:0xffd24a, emissive:0xffaa22, emissiveIntensity:.4}));
       roof.position.y = h/2; mesh.add(roof);
-      // glowing top deck (where you can run when rideable)
-      const deck = new THREE.Mesh(new THREE.BoxGeometry(w*1.06,0.12,d), new THREE.MeshStandardMaterial({color:0xffe6a8, emissive:0xffaa33, emissiveIntensity:.5, roughness:.5}));
-      deck.position.y = h+0.06; deck.receiveShadow = true; mesh.add(deck);
       for(let z=-d/2+1.2; z<d/2; z+=2){
-        const win = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.8,1.0), new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcc66, emissiveIntensity:.7}));
+        const win = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.8,1.0), new THREE.MeshStandardMaterial({color:0xfff3c0, emissive:0xffcc66, emissiveIntensity:.8}));
         win.position.set(w/2,0.3,z); mesh.add(win);
         const win2 = win.clone(); win2.position.x = -w/2; mesh.add(win2);
       }
-      // staircase on the front (+z) face — shown only for rideable trains
-      stairs = new THREE.Group();
-      const stepMat = new THREE.MeshStandardMaterial({color:0xffe6a8, emissive:0xffaa33, emissiveIntensity:.55, roughness:.5});
-      for(let i=0;i<4;i++){
-        const step = new THREE.Mesh(new THREE.BoxGeometry(w, 0.55, 0.7), stepMat);
-        step.position.set(0, 0.28 + i*0.6, d/2 + 1.0 - i*0.62);
-        step.castShadow = true; stairs.add(step);
-      }
-      stairs.visible = false;
-      mesh.add(stairs);
-    } else if (type === 'low') {
-      w = 1.8; h = 0.9; d = 1.0; y = h/2;
-      mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatLow);
-      mesh.castShadow = true;
-    } else {
-      w = 1.9; h = 1.1; d = 0.6; y = 1.9;
+    } else if (type === 'low') {        // short — JUMP over (arrow hint)
+      w = 1.9; h = 0.9; d = 1.1; y = h/2;
+      mesh = new THREE.Group();
+      const box = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatLow);
+      box.castShadow = true; mesh.add(box);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.32,0.5,4), new THREE.MeshStandardMaterial({color:0xfff0c0, emissive:0xffc34a, emissiveIntensity:.9}));
+      tip.position.y = h/2+0.5; tip.rotation.y = Math.PI/4; mesh.add(tip);
+    } else {                            // high bar — SLIDE under
+      w = 1.9; h = 1.0; d = 0.7; y = 2.0;
       mesh = new THREE.Group();
       const bar = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), obMatHigh);
       bar.castShadow = true; mesh.add(bar);
       for(let s=-1;s<=1;s+=2){
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18,2.6,0.18), new THREE.MeshStandardMaterial({color:0x4a35aa, emissive:0x2a1a88, emissiveIntensity:.3}));
-        leg.position.set(s*(w/2-0.15), -1.7, 0); mesh.add(leg);
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18,3.2,0.18), new THREE.MeshStandardMaterial({color:0x4a35aa, emissive:0x2a1a88, emissiveIntensity:.3}));
+        leg.position.set(s*(w/2-0.15), -2.0, 0); mesh.add(leg);
       }
     }
-    mesh.userData = { type, w, h, d, y, half: {x:w/2, y:h/2, z:d/2}, topY: y + h/2, stairs, rideable:false, moving:false, mbase:0, mphase:0, mspeed:0, mamp:2.2 };
+    mesh.userData = { type, w, h, d, y, half: {x:w/2, y:h/2, z:d/2} };
     mesh.visible = false;
     scene.add(mesh);
     return mesh;
@@ -1225,8 +1220,6 @@
   function getObstacle(type) {
     let o = obstacles.find(m => !m.visible && m.userData.type === type);
     if (!o) { o = makeObstacle(type); obstacles.push(o); }
-    o.userData.rideable = false; o.userData.moving = false;
-    if (o.userData.stairs) o.userData.stairs.visible = false;
     o.visible = true;
     return o;
   }
@@ -1310,7 +1303,7 @@
     shake: 0,
     level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
     lean: 0, biome: 0, reviveLeft: 0,
-    rocket: 0, flyY: 0, lastPwDist: 0, groundY: 0,
+    rocket: 0, flyY: 0, lastPwDist: 0,
     mode: 'endless', timeLeft: 0,
     ab: abilities('runner'),
   };
@@ -1347,7 +1340,7 @@
       powerups: { magnet:0, boots:0, x2:0 }, hover: false, invuln: 1.2,
       shields: 0, combo: 0, comboT: 0, shake: 0,
       level: 1, nextLevelDist: LEVEL_DIST, nextCheckpoint: CHECKPOINT_DIST,
-      lean: 0, biome: 0, rocket: 0, flyY: 0, lastPwDist: 0, groundY: 0,
+      lean: 0, biome: 0, rocket: 0, flyY: 0, lastPwDist: 0,
       mode: mode || 'endless',
       timeLeft: mode === 'challenge' ? TIME_ATTACK_SECONDS : 0,
     });
@@ -1414,25 +1407,11 @@
     const trainLanes = lanes.filter(l => occ[l] === 'train');
     if (trainLanes.length >= 3) occ[1] = 'low';
 
-    // place obstacles (rideable trains get stairs; lone barriers may slide later on)
-    const occCount = lanes.filter(l => occ[l]).length;
+    // place obstacles
     lanes.forEach(l => {
       if (!occ[l]) return;
       const o = getObstacle(occ[l]);
-      if (occ[l] === 'train') {
-        o.position.set(LANES[l], o.userData.y, z - 3);
-        if (Math.random() < 0.35 + diff*0.40) {
-          o.userData.rideable = true;
-          if (o.userData.stairs) o.userData.stairs.visible = true;
-          spawnCoinRoof(z, l, o.userData.topY + 0.7);
-        }
-      } else {
-        o.position.set(LANES[l], o.userData.y, z);
-        if (occCount === 1 && G.level >= 4 && Math.random() < 0.25 + diff*0.25) {
-          o.userData.moving = true; o.userData.mbase = 0; o.userData.mphase = Math.random()*Math.PI*2;
-          o.userData.mspeed = 0.7 + Math.random()*0.5; o.userData.mamp = 2.2;
-        }
-      }
+      o.position.set(LANES[l], o.userData.y, occ[l] === 'train' ? z - 2.5 : z);
     });
 
     // coins on a non-train lane (arc over jump barriers)
@@ -1450,15 +1429,16 @@
     if (G.distance - G.lastPwDist < 110) return;
     if (Math.random() >= 0.5) return;
     G.lastPwDist = G.distance;
-    const type = PW_TYPES[(Math.random()*PW_TYPES.length)|0];
+    // the ⏰ time pickup only exists in Challenge mode (weighted up there)
+    const pool = G.mode === 'challenge'
+      ? [...PW_TYPES, 'time', 'time']
+      : PW_TYPES.filter(t => t !== 'time');
+    const type = pool[(Math.random()*pool.length)|0];
     const p = getPowerup(type);
     p.position.set(LANES[freeLanes[(Math.random()*freeLanes.length)|0]], 1.2, z - 5);
   }
   function spawnCoinRow(z, lane) {
     for (let i=0;i<5;i++){ const c = getCoin(); c.position.set(LANES[lane], 1.0, z - i*1.6); }
-  }
-  function spawnCoinRoof(z, lane, y) {
-    for (let i=0;i<4;i++){ const c = getCoin(); c.position.set(LANES[lane], y, z - 1 - i*1.6); }
   }
   function spawnCoinArc(z, lane) {
     for (let i=0;i<6;i++){
@@ -1503,10 +1483,11 @@
     }
   });
 
-  // Responsive but controlled swipe: ONE action per touch gesture. Lift and
-  // swipe again for the next move — prevents a single drag firing repeatedly.
+  // Swipe: ONE action per gesture, very forgiving. Whichever direction you swing
+  // toward (left/right/up/down) is taken as the intent — no need to swipe straight.
+  // A short flick is enough; lift and flick again for the next move.
   let touchStart = null, didSwipe = false;
-  const SWIPE_MIN = 22;
+  const SWIPE_MIN = 16;   // short flicks register
   canvas.addEventListener('touchstart', (e) => {
     touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     didSwipe = false;
@@ -1517,16 +1498,10 @@
     const dy = e.touches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
     if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
-    // generous angle tolerance: a swipe doesn't need to be perfectly aligned.
-    // dominant axis always fires; the other also fires if it's at least 55% as big
-    // (so diagonal swipes do both, and slightly-off swipes still register).
-    if (adx >= ady) {
-      moveLane(dx > 0 ? 1 : -1);
-      if (ady > adx * 0.55 && ady >= SWIPE_MIN) { if (dy > 0) slide(); else jump(); }
-    } else {
-      if (dy > 0) slide(); else jump();
-      if (adx > ady * 0.55 && adx >= SWIPE_MIN) moveLane(dx > 0 ? 1 : -1);
-    }
+    // dominant axis wins — any roughly-horizontal swipe moves lane, any
+    // roughly-vertical swipe jumps/slides. Maximum angle tolerance (±45°).
+    if (adx >= ady) moveLane(dx > 0 ? 1 : -1);
+    else { if (dy > 0) slide(); else jump(); }
     didSwipe = true;   // locked until finger lifts
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
@@ -1687,15 +1662,19 @@
   }
   function show(id){ el(id).classList.remove('hidden'); }
   function hide(id){ el(id).classList.add('hidden'); }
-  // Show an overlay but ignore input for a moment so an in-flight tap/click
-  // (e.g. the jump tap right as you crash) can't instantly trigger its buttons.
-  function showGuarded(id){
-    const o = el(id);
-    o.classList.remove('hidden');
-    o.style.pointerEvents = 'none';
-    clearTimeout(o._guard);
-    o._guard = setTimeout(()=>{ o.style.pointerEvents = ''; }, 500);
+
+  // Navigation lock: a single physical tap can otherwise fire on a button and then
+  // "fall through" to whatever button appears under the finger on the next screen
+  // (the classic cause of "홈으로 restarts the game"). After any screen change we
+  // ignore further navigation for a short window so one tap = one transition.
+  let navLock = 0;
+  function navReady(){
+    const now = performance.now();
+    if (now < navLock) return false;
+    navLock = now + 420;
+    return true;
   }
+  function showGuarded(id){ el(id).classList.remove('hidden'); navLock = performance.now() + 420; }
 
   function toast(msg, icon='✨'){
     const w = el('toast-wrap');
@@ -1719,6 +1698,7 @@
   // ===================================================================
   let selectedMode = 'endless';
   function startGame(mode) {
+    if (!navReady()) return;
     const m = (mode === 'endless' || mode === 'challenge') ? mode : selectedMode;
     initAudio();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -1734,17 +1714,19 @@
     updateItemBar();
   }
   function togglePause() {
+    if (!navReady()) return;
     if (state === State.PLAY) { state = State.PAUSE; showGuarded('pause-overlay'); }
     else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
     updateItemBar();
   }
   function goHome() {
+    if (!navReady()) return;
     state = State.HOME;
     hide('pause-overlay'); hide('over-overlay'); hide('challenge-intro');
     el('hud').classList.remove('show');
     updateItemBar();
     hideAll();            // clear obstacles/coins so home shows only the character
-    showGuarded('home');  // guard so the in-flight tap can't restart the game
+    show('home');
     refreshHome();
   }
   function gameOver() {
@@ -2173,15 +2155,10 @@
     const dx = G.laneX - prevX;
     G.lean += ((-dx * 60) - G.lean) * Math.min(1, dt * 10);
 
-    const floor = G.groundY;   // surface height under the player (0, or a train deck)
     if (G.jumping) {
       G.vy += GRAVITY * G.ab.gravMult * dt;
       G.y += G.vy * dt;
-      if (G.y <= floor) { G.y = floor; G.vy = 0; G.jumping = false; }
-    } else if (G.y < floor) {
-      G.y = Math.min(floor, G.y + 16*dt);      // climb the stairs onto a train deck
-    } else if (G.y > floor + 0.02) {
-      G.jumping = true; G.vy = 0;              // ran off an edge → start falling
+      if (G.y <= 0) { G.y = 0; G.vy = 0; G.jumping = false; }
     }
     if (G.sliding) { G.slideT -= dt; if (G.slideT <= 0) G.sliding = false; }
 
@@ -2248,26 +2225,11 @@
     for (const s of sceneryItems) { s.position.z += move; if (s.position.z > 20) s.position.z -= sceneryItems.length * 16; }
 
     const pBox = playerBox();
-    let groundY = 0;                          // surface under the player this frame
     for (const o of obstacles) {
       if (!o.visible) continue;
       o.position.z += move;
-      const ud = o.userData;
-      if (ud.moving) { ud.mphase += dt * ud.mspeed; o.position.x = THREE.MathUtils.clamp(ud.mbase + Math.sin(ud.mphase)*ud.mamp, -2.2, 2.2); }
       if (o.position.z > DESPAWN_Z) { o.visible = false; continue; }
-
-      const overlapX = Math.abs(G.laneX - o.position.x) < ud.half.x + pBox.hx;
-      const overlapZ = Math.abs(PLAYER_Z - o.position.z) < ud.half.z + pBox.hz + move;
-      if (!overlapX || !overlapZ) continue;
-
-      // stand on a train deck (rideable via stairs, or landed on top from a big jump)
-      if (ud.type === 'train' && (ud.rideable || G.y >= ud.topY - 0.3)) {
-        groundY = Math.max(groundY, ud.topY);
-        continue;
-      }
-
-      // otherwise lethal when vertically overlapping
-      if (G.invuln <= 0 && G.rocket <= 0 && Math.abs(pBox.y - o.position.y) < pBox.hy + ud.half.y) {
+      if (G.invuln <= 0 && G.rocket <= 0 && intersectSwept(pBox, o, move)) {
         if (G.hover) { G.hover = false; pp.board.visible = false; G.invuln = 1.0 + G.ab.invulnBonus; flash(); sfx('crash'); updatePowerupBar(); o.visible=false; G.shake=0.3; }
         else if (G.shields > 0) { G.shields--; if(G.shields<=0) pp.shieldMesh.visible=false; G.invuln=1.2 + G.ab.invulnBonus; flash(); sfx('crash'); burst(player.position.x,1.4,PLAYER_Z,0x66ffcc,16); updatePowerupBar(); o.visible=false; G.shake=0.4; }
         else if (G.reviveLeft > 0) { reviveRun(); return; }
@@ -2281,7 +2243,6 @@
         else { gameOver(); return; }
       }
     }
-    G.groundY = groundY;
     const magnet = G.powerups.magnet > 0 || G.rocket > 0;   // rocket vacuums coins too
     const coinBonus = save.upgrades.multiplier;
     const pullY = G.y + G.flyY + 1.0;
