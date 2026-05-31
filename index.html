@@ -354,9 +354,6 @@
   #error-box p { opacity:.8; max-width:420px; line-height:1.6; }
 
   .flash { position: fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:15; }
-  /* shield sits above everything; when .on it intercepts every pointer event */
-  #tap-shield { position: fixed; inset: 0; z-index: 999; display: none; background: transparent; }
-  #tap-shield.on { display: block; }
   /* reward popup burst */
   #reward-pop { position: fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition: opacity .3s ease; }
   #reward-pop.show { opacity:1; }
@@ -499,8 +496,6 @@
 <body>
   <canvas id="game-canvas"></canvas>
   <div id="vignette"></div>
-  <!-- transient full-screen shield: swallows ghost/fall-through taps during screen changes -->
-  <div id="tap-shield"></div>
 
   <!-- HUD -->
   <div id="hud">
@@ -1499,7 +1494,7 @@
   // toward (left/right/up/down) is taken as the intent — no need to swipe straight.
   // A short flick is enough; lift and flick again for the next move.
   let touchStart = null, didSwipe = false;
-  const SWIPE_MIN = 16;   // short flicks register
+  const SWIPE_MIN = 28;   // deliberate flick needed (fewer accidental triggers)
   canvas.addEventListener('touchstart', (e) => {
     touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     didSwipe = false;
@@ -1510,11 +1505,12 @@
     const dy = e.touches[0].clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
     if (adx < SWIPE_MIN && ady < SWIPE_MIN) return;
-    // dominant axis wins — any roughly-horizontal swipe moves lane, any
-    // roughly-vertical swipe jumps/slides. Maximum angle tolerance (±45°).
+    // Whole 360° is split into four 90° wedges by the dominant axis, so a swipe
+    // in ANY direction is recognised — no need to aim. Horizontal → lane change,
+    // vertical → jump/slide.
     if (adx >= ady) moveLane(dx > 0 ? 1 : -1);
     else { if (dy > 0) slide(); else jump(); }
-    didSwipe = true;   // locked until finger lifts
+    didSwipe = true;   // one action per gesture; lift and flick again for the next
   }, { passive: true });
   canvas.addEventListener('touchend', (e) => {
     if (touchStart && !didSwipe) {
@@ -1675,25 +1671,36 @@
   function show(id){ el(id).classList.remove('hidden'); }
   function hide(id){ el(id).classList.add('hidden'); }
 
-  // ----- Tap shield -----------------------------------------------------------
-  // Mobile fires a synthetic "click" ~300ms after a touch at the SAME screen
-  // coordinate. If a button there triggers a screen change, that ghost click
-  // lands on whatever button now sits under the finger — the root cause of
-  // "홈으로 restarts the game", "rocket opens the shop", etc. After every screen
-  // transition we raise a transparent full-screen shield that physically
-  // swallows all pointer events for a moment, so exactly one tap = one action.
-  const shield = document.getElementById('tap-shield');
-  let shieldTimer = null;
-  function raiseShield(ms = 500){
-    shield.classList.add('on');
-    clearTimeout(shieldTimer);
-    shieldTimer = setTimeout(()=>shield.classList.remove('on'), ms);
+  // ----- Unified tap binding --------------------------------------------------
+  // Root cause of every "wrong button" bug: on mobile a touch is followed ~300ms
+  // later by a SYNTHETIC click at the same coordinate. If the screen changed in
+  // between, that ghost click hits whatever button is now under the finger
+  // (홈→재시작, 로켓→상점, etc). Fix: handle `touchend` and call preventDefault()
+  // — this cancels the synthetic click entirely — and fall back to `click` for
+  // mouse/desktop. A short global cooldown stops rapid double-triggers.
+  let lastTap = 0;
+  function tap(elOrId, handler){
+    const node = typeof elOrId === 'string' ? el(elOrId) : elOrId;
+    if (!node) return;
+    let touched = false;
+    const fire = (e) => {
+      const now = performance.now();
+      if (now - lastTap < 280) return;   // global debounce across all buttons
+      lastTap = now;
+      handler(e);
+    };
+    node.addEventListener('touchend', (e) => {
+      touched = true;
+      e.preventDefault();                // kills the ghost click
+      e.stopPropagation();
+      fire(e);
+      setTimeout(()=>{ touched = false; }, 500);
+    }, { passive: false });
+    node.addEventListener('click', (e) => {
+      if (touched) { e.preventDefault(); return; }   // already handled by touch
+      fire(e);
+    });
   }
-  ['click','pointerdown','pointerup','touchstart','touchend','mousedown','mouseup'].forEach(ev=>{
-    shield.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); }, { capture:true, passive:false });
-  });
-  // every screen reveal raises the shield
-  function showGuarded(id){ el(id).classList.remove('hidden'); raiseShield(); }
 
   function toast(msg, icon='✨'){
     const w = el('toast-wrap');
@@ -1730,11 +1737,10 @@
     closeAllSheets();
     el('hud').classList.add('show');
     updateItemBar();
-    raiseShield();
   }
   function togglePause() {
-    if (state === State.PLAY) { state = State.PAUSE; showGuarded('pause-overlay'); }
-    else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); raiseShield(); }
+    if (state === State.PLAY) { state = State.PAUSE; show('pause-overlay'); }
+    else if (state === State.PAUSE) { state = State.PLAY; hide('pause-overlay'); }
     updateItemBar();
   }
   function goHome() {
@@ -1744,7 +1750,7 @@
     el('hud').classList.remove('show');
     updateItemBar();
     hideAll();            // clear obstacles/coins so home shows only the character
-    showGuarded('home');  // shield blocks the ghost tap that used to restart the game
+    show('home');
     refreshHome();
   }
   function gameOver() {
@@ -1776,29 +1782,34 @@
     el('run-mile').textContent = '+'+mileGain;
     el('newbest').style.display = isBest ? 'block' : 'none';
     el('hud').classList.remove('show');
-    showGuarded('over-overlay');
+    show('over-overlay');
     if (isBest) { confettiBurst(); setTimeout(()=>sfx('reward'), 300); }
     checkAchievements(true);
   }
 
-  el('home-play').addEventListener('click', ()=>{
-    if (selectedMode === 'challenge') showGuarded('challenge-intro');
+  // Home: play / mode select — only meaningful in HOME state
+  tap('home-play', ()=>{
+    if (state !== State.HOME) return;
+    if (selectedMode === 'challenge') show('challenge-intro');
     else startGame('endless');
   });
-  el('challenge-start').addEventListener('click', ()=>{ hide('challenge-intro'); startGame('challenge'); });
-  el('challenge-back').addEventListener('click', ()=>{ hide('challenge-intro'); raiseShield(); });
-  el('retry-btn').addEventListener('click', ()=>startGame(G.mode));
-  document.querySelectorAll('.mode-pick').forEach(p=>p.addEventListener('click', ()=>{
+  tap('challenge-start', ()=>{ if (state !== State.HOME) return; hide('challenge-intro'); startGame('challenge'); });
+  tap('challenge-back',  ()=>{ hide('challenge-intro'); });
+  document.querySelectorAll('.mode-pick').forEach(p=>tap(p, ()=>{
+    if (state !== State.HOME) return;
     selectedMode = p.dataset.mode;
     document.querySelectorAll('.mode-pick').forEach(q=>q.classList.toggle('active', q===p));
   }));
-  el('resume-btn').addEventListener('click', togglePause);
-  el('home-from-pause').addEventListener('click', goHome);
-  el('home-from-over').addEventListener('click', goHome);
-  el('pause-btn').addEventListener('click', togglePause);
+  // Game-over / pause navigation
+  tap('retry-btn', ()=>{ if (state === State.OVER) startGame(G.mode); });
+  tap('resume-btn', ()=>{ if (state === State.PAUSE) togglePause(); });
+  tap('home-from-pause', ()=>{ if (state === State.PAUSE) goHome(); });
+  tap('home-from-over',  ()=>{ if (state === State.OVER)  goHome(); });
+  tap('pause-btn', ()=>{ if (state === State.PLAY || state === State.PAUSE) togglePause(); });
 
-  // settings (mute toggle)
-  el('settings-btn').addEventListener('click', ()=>{
+  // settings (mute toggle) — home only
+  tap('settings-btn', ()=>{
+    if (state !== State.HOME) return;
     save.muted = !save.muted; persist();
     el('settings-btn').querySelector('.ic').textContent = save.muted ? '🔇' : '🔊';
     toast(save.muted ? '음소거됨' : '소리 켜짐', save.muted?'🔇':'🔊');
@@ -1827,8 +1838,10 @@
     el('badge-ach').classList.toggle('show', claimableAch);
   }
 
+  // Shop/upgrade/etc tabs — ONLY usable from the home screen (never mid-run)
   document.querySelectorAll('.tab-btn').forEach(b=>{
-    b.addEventListener('click', ()=>{
+    tap(b, ()=>{
+      if (state !== State.HOME) return;
       const id = b.dataset.sheet;
       if (id==='shop-sheet') renderShop();
       else if (id==='consum-sheet') renderConsum();
@@ -1839,7 +1852,7 @@
     });
   });
   document.querySelectorAll('[data-close]').forEach(x=>{
-    x.addEventListener('click', ()=>{ closeAllSheets(); refreshHome(); });
+    tap(x, ()=>{ closeAllSheets(); refreshHome(); });
   });
   function closeAllSheets(){ document.querySelectorAll('.sheet').forEach(s=>s.classList.add('hidden')); }
 
@@ -1866,9 +1879,9 @@
         <div class="act">${actHtml}</div>`;
       body.appendChild(card);
     });
-    body.querySelectorAll('[data-buy]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buy, false)));
-    body.querySelectorAll('[data-buygem]').forEach(btn=>btn.addEventListener('click', ()=>buyChar(btn.dataset.buygem, true)));
-    body.querySelectorAll('[data-equip]').forEach(btn=>btn.addEventListener('click', ()=>{
+    body.querySelectorAll('[data-buy]').forEach(btn=>tap(btn, ()=>buyChar(btn.dataset.buy, false)));
+    body.querySelectorAll('[data-buygem]').forEach(btn=>tap(btn, ()=>buyChar(btn.dataset.buygem, true)));
+    body.querySelectorAll('[data-equip]').forEach(btn=>tap(btn, ()=>{
       save.selected = btn.dataset.equip; persist();
       buildPlayer(save.selected); playerParts._charId = save.selected;
       sfx('buy'); renderShop(); refreshHome();
@@ -1906,7 +1919,7 @@
         <div class="act">${actHtml}</div>`;
       body.appendChild(card);
     });
-    body.querySelectorAll('[data-up]').forEach(btn=>btn.addEventListener('click', ()=>buyUpgrade(btn.dataset.up)));
+    body.querySelectorAll('[data-up]').forEach(btn=>tap(btn, ()=>buyUpgrade(btn.dataset.up)));
   }
   function buyUpgrade(id){
     const u = upById(id);
@@ -1934,7 +1947,7 @@
         <div class="act"><div class="price">🪙 ${it.price.toLocaleString()}</div><button class="mini-btn" data-buy-item="${it.id}" ${save.wallet<it.price?'disabled':''}>구매</button></div>`;
       body.appendChild(card);
     });
-    body.querySelectorAll('[data-buy-item]').forEach(btn=>btn.addEventListener('click', ()=>buyConsum(btn.dataset.buyItem)));
+    body.querySelectorAll('[data-buy-item]').forEach(btn=>tap(btn, ()=>buyConsum(btn.dataset.buyItem)));
   }
   function buyConsum(id){
     const it = CONSUMABLES.find(c=>c.id===id);
@@ -1959,7 +1972,6 @@
     if (id==='bomb') explodeBomb();
     else if (id==='rocket') activatePower('rocket');
     updateItemBar();
-    raiseShield(350);   // swallow the trailing ghost click so it can't hit a menu
   }
   function explodeBomb(){
     let cleared = 0;
@@ -1974,8 +1986,8 @@
     burst(player.position.x, 1.4, PLAYER_Z, 0xff7733, 34);
     showBanner('💣 폭발!', cleared>0 ? cleared+'개 제거' : '길을 텄다');
   }
-  el('use-bomb').addEventListener('click', ()=>useConsumable('bomb'));
-  el('use-rocket').addEventListener('click', ()=>useConsumable('rocket'));
+  tap('use-bomb', ()=>useConsumable('bomb'));
+  tap('use-rocket', ()=>useConsumable('rocket'));
 
   // ---- new-record confetti ----
   function confettiBurst(){
@@ -2024,7 +2036,7 @@
         <div class="ds" style="font-size:12px;opacity:.7;">보유 마일리지: <b style="color:var(--accent3)">${save.mileage.toLocaleString()}💎</b> · 거리와 코인으로 적립됩니다</div>
         <div id="mile-shop" style="display:flex;flex-direction:column;gap:8px;"></div>
       </div>`;
-    el('claim-daily').addEventListener('click', claimDaily);
+    tap('claim-daily', claimDaily);
     // mileage exchange options
     const MILE_OPTS = [
       { mile:20,  coins:300,  label:'코인 꾸러미' },
@@ -2039,7 +2051,7 @@
         <button class="mini-btn" data-mile="${o.mile}" data-coins="${o.coins}" ${save.mileage<o.mile?'disabled':''}>교환</button>`;
       ms.appendChild(row);
     });
-    ms.querySelectorAll('[data-mile]').forEach(btn=>btn.addEventListener('click', ()=>{
+    ms.querySelectorAll('[data-mile]').forEach(btn=>tap(btn, ()=>{
       const m = +btn.dataset.mile, co = +btn.dataset.coins;
       if (save.mileage < m) return;
       save.mileage -= m; save.wallet += co; persist();
@@ -2085,7 +2097,7 @@
         <div class="claim">${act}</div>`;
       body.appendChild(row);
     });
-    body.querySelectorAll('[data-ach]').forEach(btn=>btn.addEventListener('click', ()=>claimAch(btn.dataset.ach)));
+    body.querySelectorAll('[data-ach]').forEach(btn=>tap(btn, ()=>claimAch(btn.dataset.ach)));
   }
   function claimAch(id){
     const a = ACHIEVEMENTS.find(x=>x.id===id);
